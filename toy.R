@@ -20,8 +20,9 @@ VOL_ML <- 100   # TODO - THIS DOESN'T ENTER ANYWHERE BELOW
 prediction <- function(x, p, k) {
 
     # This is equation 11 from von Fischer and Hedin 2002
-    (x$cal13CH4ml[1] * exp(-k * FRAC_K * x$time)) /
-        ((x$cal12CH4ml[1] + x$cal13CH4ml[1]) * exp(-k * x$time)) +
+    # "-1" because we don't want to predict for the first point
+    (x$cal13CH4ml[1] * exp(-k * FRAC_K * x$time[-1])) /
+        ((x$cal12CH4ml[1] + x$cal13CH4ml[1]) * exp(-k * x$time[-1])) +
     FRAC_P
 }
 
@@ -30,7 +31,7 @@ cost_function <- function(params, x) {
     ratio_pred <- prediction(x, params["p"], params["k"])
 
     # compute SS and return to the optimizer
-    sum((ratio_pred - x$ratio) ^ 2)
+    sum((ratio_pred - x$ratio[-1]) ^ 2)
 }
 
 
@@ -44,7 +45,7 @@ result <- optim(c("p" = 0.1, "k"= -0.01), cost_function, gr = NULL, x)
 print(result)
 
 # Predict based on the optimized parameters
-x$pred <- prediction(x, result$par["p"], result$par["k"])
+x$pred <- c(NA, prediction(x, result$par["p"], result$par["k"]))
 print(x)
 
 # Plot!
