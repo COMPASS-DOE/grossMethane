@@ -2,12 +2,19 @@ library(tibble)
 library(ggplot2)
 theme_set(theme_bw())
 
-# Test data
-x <- tibble(time = c(0.0, 0.45, 0.92, 1.4, 1.8, 2.3, 2.8),
-            cal12CH4ml = c(734, 731, 729, 729, 728, 725, 725) / 1000000,
-            cal13CH4ml = c(103, 103, 102, 102, 102, 101, 101) / 1000000,
+# Original # Test data
+# x <- tibble(time = c(0.0, 0.45, 0.92, 1.4, 1.8, 2.3, 2.8),
+#             cal12CH4ml = c(734, 731, 729, 729, 728, 725, 725) / 1000000,
+#             cal13CH4ml = c(103, 103, 102, 102, 102, 101, 101) / 1000000,
+#             # Calculate atom percent (AP) of 13C methane in sample over time
+#             AP_obs = cal13CH4ml / (cal12CH4ml + cal13CH4ml) * 100)
+
+x <- tibble(time = c(0.0, 0.47, 0.60),
+            cal12CH4ml = c(0.0016, 0.0013, 0.0010),
+            cal13CH4ml = c(0.000024, 0.000019, 0.000015),
             # Calculate atom percent (AP) of 13C methane in sample over time
             AP_obs = cal13CH4ml / (cal12CH4ml + cal13CH4ml) * 100)
+
 
 # Constants
 FRAC_K <- 0.98 # 13C consumption as a fraction of 12C consumption (alpha in Eq. 11)
@@ -97,3 +104,4 @@ comparison <- ggplot(x, aes(time)) + geom_point(aes(y = AP_obs)) +
     geom_line(aes(y = AP_pred), linetype = 2) +
     ggtitle(paste0("P = ", round(result$par["P"], 8), ", k = ", round(result$par["k"], 4)))
 print(comparison)
+
