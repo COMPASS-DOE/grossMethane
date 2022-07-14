@@ -17,13 +17,22 @@ library(lubridate)
 collars <- read.csv("cores_collars.csv")
 data_raw <- read.csv("licordata.csv")
 
+#fix a data entry error where collar 69 was entered as 59
+#this must be run before 693 is reassigned to 69
+data_raw[data_raw$Collar == "69",]$Collar <- "59"
+
+#filter bad values and replace none standard collar names
 data_raw %>%
   filter(FCH4_dry != -9999,
          FCO2_dry > 0) %>%
   mutate(Collar = replace(Collar,
                           Collar == "3-Feb", "3"),
          Collar = replace(Collar,
-                          Collar == "2-Feb", "2")) -> data_raw
+                          Collar == "2-Feb", "2"),
+         Collar = replace(Collar,
+                          Collar == "639", "63"),
+         Collar = replace(Collar,
+                          Collar == "693", "69")) -> data_raw
 
 collars$Collar <- as.character(collars$Collar)
 
@@ -31,9 +40,6 @@ collars$Collar <- as.character(collars$Collar)
 data <- left_join(data_raw, collars,
             by = "Collar",
             keep = FALSE)
-
-#remove NA's caused by 630 and 693 for now
-data <- data[!is.na(data$Site),]
 
 #Fill in NA's in reps with 1
 data[is.na(data$Reps),]$Reps <- 1
@@ -50,6 +56,14 @@ data$Origin <- recode_factor(data$Origin,
                 "MSLE" = "midstream",
                 "LSLE" = "upstream")
 
+#labelled column with current collar location in the same way
+data$Location <- recode_factor(data$Location,
+                               "HSLE" = "g_low",
+                               "HSME" = "g_mid",
+                               "HSHE" = "g_up",
+                               "MSLE" = "midstream",
+                               "LSLE" = "upstream")
+
 #create timestamp
 data$timestamp <- paste(data$date, data$time)
 data$timestamp <- mdy_hms(data$timestamp, tz="EST")
@@ -57,6 +71,17 @@ data$timestamp <- mdy_hms(data$timestamp, tz="EST")
 #first summary plot of CO2 fluxes
 ggplot(data = data, aes(Experiment, FCO2_dry,)) +
   geom_boxplot()
+
+####14-07-2022####
+#KM example plot
+
+ggplot(data = data[data$FCH4_dry < 1500,],
+       aes(date, FCH4_dry,
+           fill = Experiment)) +
+geom_boxplot() +
+  facet_grid(Location ~ ., scales = "free")  
+  
+
 
 # FCO2_dry, TS_mean
 ggplot(data = data, aes(FCO2_dry, TS_mean)) +

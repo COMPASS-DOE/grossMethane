@@ -34,9 +34,6 @@ data <- left_join(data_raw, collars,
             by = "Collar",
             keep = FALSE)
 
-#remove NA's caused by 630 and 693 for now
-data <- data[!is.na(data$Site),]
-
 #Fill in NA's in reps with 1
 data[is.na(data$Reps),]$Reps <- 1
 
