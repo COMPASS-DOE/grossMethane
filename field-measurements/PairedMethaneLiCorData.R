@@ -186,7 +186,7 @@ data %>%
 #What is the effect of SWC on CH4
 ggplot(data = data[data$FCH4_dry<200,], aes(SWC_mean, FCH4_dry, color = Origin)) +
   geom_point() + 
-  facet_wrap(~Origin, scales = "free") +
+  facet_wrap(~Location, scales = "free") +
   labs(title = "Effect of SWC on CH4")
 
 SWC_stats <- data %>% group_by(Origin) %>%
