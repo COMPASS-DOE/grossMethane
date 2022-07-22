@@ -68,10 +68,6 @@ data$Location <- recode_factor(data$Location,
                                "MSLE" = "midstream",
                                "LSLE" = "upstream")
 
-#create timestamp
-data$timestamp <- paste(data$date, data$time)
-data$timestamp <- mdy_hms(data$timestamp, tz="EST")
-
 #first summary plot of CO2 fluxes
 ggplot(data = data, aes(Experiment, FCO2_dry,)) +
   geom_boxplot()
@@ -80,8 +76,8 @@ ggplot(data = data, aes(Experiment, FCO2_dry,)) +
 #KM example plot
 
 ggplot(data = data[data$FCH4_dry < 1500,],
-       aes(datetime, FCH4_dry,
-           fill = Experiment)) +
+       aes(date(timestamp), FCH4_dry,
+           fill = Experiment, group = date(timestamp))) +
   geom_boxplot() +
   facet_grid(Origin~., scales = "free") 
 
@@ -90,7 +86,7 @@ data %>%
   dplyr::filter( FCH4_dry < 1500, 
                  Origin %in% c('g_low','g_mid','g_up') ) %>% 
   ggplot() +
-  aes( x = datetime, y = FCH4_dry, fill = Experiment ) +
+  aes( x = timestamp, y = FCH4_dry, fill = Experiment ) +
   geom_boxplot() +
   facet_grid(Origin~., scales = 'free')
 
@@ -104,8 +100,8 @@ ggplot(data = data[data$FCO2_dry<25,], aes(TS_mean, FCO2_dry)) +
   geom_point()
 
 # date, FCO2_dry -> advanced
-ggplot(data = data, aes(date,FCO2_dry)) +
-  geom_boxplot(aes(group = date, fill = Origin))
+ggplot(data = data, aes(date(timestamp),FCO2_dry)) +
+  geom_boxplot(aes(group = date(timestamp), fill = Origin))
 
 
 
@@ -122,7 +118,7 @@ ggplot(data = data, aes(date, TS_mean)) +
   geom_point()
 
 #Date series plots -> SWC_mean
-ggplot(data = data, aes(hour(datetime), SWC_mean)) +
+ggplot(data = data, aes(hour(timestamp), SWC_mean)) +
   geom_point()
 
 #What is the effect of temp on CO2
@@ -159,11 +155,11 @@ ggplot(data = data[data$FCH4_dry<200,],
   geom_boxplot()
 
 # Good graph
-ggplot(data = data, aes(date,TS_mean)) +
-  geom_boxplot(aes(group = date, fill = Origin))
+ggplot(data = data, aes(date(timestamp),TS_mean)) +
+  geom_boxplot(aes(group = date(timestamp), fill = Origin))
 
 # timestamp example
-ggplot(data, aes(date(datetime), FCO2_dry, color = TS_mean)) +
+ggplot(data, aes(date(timestamp), FCO2_dry, color = TS_mean)) +
   geom_point() +
   facet_wrap(~Origin, scales = "free")
 
@@ -173,7 +169,7 @@ data %>%
   dplyr::filter( FCH4_dry < 5 & FCH4_dry >-5, 
                  Origin %in% c('g_low','g_mid','g_up')) %>% 
   ggplot() +
-  aes( x = datetime, y = FCH4_dry, fill = Experiment ) +
+  aes( x = timestamp, y = FCH4_dry, fill = Experiment ) +
   geom_boxplot() +
   facet_grid(Location~Experiment, scales = 'free') +
   theme(axis.text.x = element_text(angle = 90))
@@ -236,6 +232,6 @@ FCH4_stats <- data %>% group_by(Origin) %>%
 stats <- bind_rows(TS_stats,FCH4_stats)
 
 # Date Series
-ggplot(data = data, aes(date,FCO2_dry)) +
-  geom_boxplot(aes(group = date, fill = Origin)) +
+ggplot(data = data, aes(date(timestamp),FCO2_dry)) +
+  geom_boxplot(aes(group = date(timestamp), fill = Origin)) +
   theme(axis.text.x = element_text(angle = 90))
