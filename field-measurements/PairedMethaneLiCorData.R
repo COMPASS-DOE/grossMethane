@@ -1,5 +1,5 @@
 
-#This code is to read-in, graph, and analyze
+#This code is to read-in and graph
 #2022 soil methane and respiration data
 #from the HS (GCREW) transect of the transplant experiment
 #see Hopple et al 2022 for more detail:
@@ -15,7 +15,11 @@ library(lubridate)
 
 #read in collar ids and data
 collars <- read.csv("cores_collars.csv")
-data_raw <- read.csv("licordata.csv")
+data_raw <- read.csv("UPDATED COLLAR HEIGHT AVG.csv")
+
+#update timestamp for new raw_data
+data_raw$timestamp <- mdy_hm(data_raw$datetime, tz="EST")
+unique(date(data_raw$timestamp))
 
 #fix a data entry error where collar 69 was entered as 59
 #this must be run before 693 is reassigned to 69
@@ -76,7 +80,7 @@ ggplot(data = data, aes(Experiment, FCO2_dry,)) +
 #KM example plot
 
 ggplot(data = data[data$FCH4_dry < 1500,],
-       aes(date, FCH4_dry,
+       aes(datetime, FCH4_dry,
            fill = Experiment)) +
   geom_boxplot() +
   facet_grid(Origin~., scales = "free") 
@@ -86,7 +90,7 @@ data %>%
   dplyr::filter( FCH4_dry < 1500, 
                  Origin %in% c('g_low','g_mid','g_up') ) %>% 
   ggplot() +
-  aes( x = date, y = FCH4_dry, fill = Experiment ) +
+  aes( x = datetime, y = FCH4_dry, fill = Experiment ) +
   geom_boxplot() +
   facet_grid(Origin~., scales = 'free')
 
@@ -118,7 +122,7 @@ ggplot(data = data, aes(date, TS_mean)) +
   geom_point()
 
 #Date series plots -> SWC_mean
-ggplot(data = data, aes(date, SWC_mean)) +
+ggplot(data = data, aes(hour(datetime), SWC_mean)) +
   geom_point()
 
 #What is the effect of temp on CO2
@@ -159,7 +163,7 @@ ggplot(data = data, aes(date,TS_mean)) +
   geom_boxplot(aes(group = date, fill = Origin))
 
 # timestamp example
-ggplot(data, aes(hour(timestamp), FCO2_dry, color = TS_mean)) +
+ggplot(data, aes(date(datetime), FCO2_dry, color = TS_mean)) +
   geom_point() +
   facet_wrap(~Origin, scales = "free")
 
@@ -169,7 +173,7 @@ data %>%
   dplyr::filter( FCH4_dry < 5 & FCH4_dry >-5, 
                  Origin %in% c('g_low','g_mid','g_up')) %>% 
   ggplot() +
-  aes( x = date, y = FCH4_dry, fill = Experiment ) +
+  aes( x = datetime, y = FCH4_dry, fill = Experiment ) +
   geom_boxplot() +
   facet_grid(Location~Experiment, scales = 'free') +
   theme(axis.text.x = element_text(angle = 90))
