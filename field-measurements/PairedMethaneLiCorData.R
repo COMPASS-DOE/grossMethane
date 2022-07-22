@@ -110,7 +110,7 @@ ggplot(data = data, aes(date, FCO2_dry)) +
   geom_point()
 
 #Date series plots -> CH4
-ggplot(data = data, aes(date, FCH4_dry)) +
+ggplot(data = data, aes(hour(timestamp), FCH4_dry)) +
   geom_point()
 
 #Date series plots -> TS_mean
@@ -155,11 +155,11 @@ ggplot(data = data[data$FCH4_dry<200,],
   geom_boxplot()
 
 # Good graph
-ggplot(data = data, aes(date(timestamp),TS_mean)) +
+ggplot(data = data, aes(date(timestamp),SWC_mean)) +
   geom_boxplot(aes(group = date(timestamp), fill = Origin))
 
 # timestamp example
-ggplot(data, aes(date(timestamp), FCO2_dry, color = TS_mean)) +
+ggplot(data, aes(date(timestamp), FCH4_dry, color = SWC_mean)) +
   geom_point() +
   facet_wrap(~Origin, scales = "free")
 
@@ -235,3 +235,11 @@ stats <- bind_rows(TS_stats,FCH4_stats)
 ggplot(data = data, aes(date(timestamp),FCO2_dry)) +
   geom_boxplot(aes(group = date(timestamp), fill = Origin)) +
   theme(axis.text.x = element_text(angle = 90))
+
+# Compare CH4 and SWC_mean between plots
+data %>% 
+  dplyr::filter( FCH4_dry < 50 & FCH4_dry >-5, 
+                 Origin %in% c('g_low','g_mid','g_up')) %>%
+ggplot(aes(date(timestamp), FCH4_dry, color = SWC_mean)) +
+  geom_point() +
+  facet_wrap(~Origin)
