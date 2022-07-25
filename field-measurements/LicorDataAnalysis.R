@@ -5,7 +5,7 @@
 # Created on July 20, 2022
 # Kendal and Mitchell
 
-anova <- aov(FCH4_dry ~ Origin*Location + date, data = data)
+anova <- aov(FCO2_dry ~ Origin*Location + date + SWC_mean, data = data)
 summary(anova)
 par(mfrow=c(2,2))
 plot(anova)

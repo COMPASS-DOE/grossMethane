@@ -21,6 +21,8 @@ data_raw <- read.csv("UPDATED COLLAR HEIGHT AVG.csv")
 data_raw$timestamp <- mdy_hm(data_raw$datetime, tz="EST")
 unique(date(data_raw$timestamp))
 
+data_raw$date <- date(data_raw$timestamp)
+
 #fix a data entry error where collar 69 was entered as 59
 #this must be run before 693 is reassigned to 69
 data_raw[data_raw$Collar == "69",]$Collar <- "59"
@@ -170,7 +172,7 @@ data %>%
                  Origin %in% c('g_low','g_mid','g_up')) %>% 
   ggplot() +
   aes( x = timestamp, y = FCH4_dry, fill = Experiment ) +
-  geom_boxplot() +
+  geom_point() +
   facet_grid(Location~Experiment, scales = 'free') +
   theme(axis.text.x = element_text(angle = 90))
 
@@ -189,7 +191,7 @@ ggplot(data = data[data$FCH4_dry<200,], aes(SWC_mean, FCH4_dry, color = Origin))
   facet_wrap(~Location, scales = "free") +
   labs(title = "Effect of SWC on CH4")
 
-SWC_stats <- data %>% group_by(Origin) %>%
+SWC_stats <- data %>% group_by(Origin, Location) %>%
   summarize(sdev = sd(SWC_mean),
             minimun = min(SWC_mean),
             maximum = max(SWC_mean),
@@ -197,7 +199,7 @@ SWC_stats <- data %>% group_by(Origin) %>%
             med = median(SWC_mean)) %>% 
   mutate(variable = "SWC_mean")
 
-FCH4_stats <- data %>% group_by(Origin) %>%
+FCH4_stats <- data %>% group_by(Origin, Location) %>%
   summarize(sdev = sd(FCH4_dry),
             minimun = min(FCH4_dry),
             maximum = max(FCH4_dry),
@@ -213,7 +215,7 @@ ggplot(data = data[data$FCH4_dry<200,], aes(TS_mean,FCH4_dry, color = Origin)) +
     geom_point() + 
     facet_wrap(~Origin, scales = "free")
 
-TS_stats <- data %>% group_by(Origin) %>%
+TS_stats <- data %>% group_by(Origin, Location) %>%
   summarize(sdev = sd(TS_mean),
             minimun = min(TS_mean),
             maximum = max(TS_mean),
@@ -221,7 +223,7 @@ TS_stats <- data %>% group_by(Origin) %>%
             med = median(TS_mean)) %>% 
   mutate(variable = "TS_mean")
 
-FCH4_stats <- data %>% group_by(Origin) %>%
+FCH4_stats <- data %>% group_by(Origin, Location) %>%
   summarize(sdev = sd(FCH4_dry),
             minimun = min(FCH4_dry),
             maximum = max(FCH4_dry),
@@ -236,6 +238,10 @@ ggplot(data = data, aes(date(timestamp),FCO2_dry)) +
   geom_boxplot(aes(group = date(timestamp), fill = Origin)) +
   theme(axis.text.x = element_text(angle = 90))
 
+
+
+#Optional graphs for powerpoint presentation
+
 # Compare CH4 and SWC_mean between plots
 data %>% 
   dplyr::filter( FCH4_dry < 50 & FCH4_dry >-5, 
@@ -243,3 +249,39 @@ data %>%
 ggplot(aes(date(timestamp), FCH4_dry, color = SWC_mean)) +
   geom_point() +
   facet_wrap(~Origin)
+
+# Compare CO2 and SWC_mean between plots
+data %>% 
+  dplyr::filter( FCO2_dry < 25 & FCO2_dry >-5, 
+                 Origin %in% c('g_low','g_mid','g_up')) %>%
+  ggplot(aes(date(timestamp), FCO2_dry, color = SWC_mean)) +
+  geom_point() +
+  facet_wrap(~Origin)
+
+# Compare CH4 and TS_mean between plots
+data %>% 
+  dplyr::filter( FCH4_dry < 50 & FCH4_dry >-5, 
+                 Origin %in% c('g_low','g_mid','g_up')) %>%
+  ggplot(aes(date(timestamp), FCH4_dry, color = TS_mean)) +
+  geom_point() +
+  facet_wrap(~Origin)
+
+# Compare CO2 and TS_mean between plots
+data %>% 
+  dplyr::filter( FCO2_dry < 25 & FCO2_dry >-5, 
+                 Origin %in% c('g_low','g_mid','g_up')) %>%
+  ggplot(aes(date(timestamp), FCO2_dry, color = TS_mean)) +
+  geom_point() +
+  facet_wrap(~Origin)
+
+
+#What is the effect of SWC on CH4
+ggplot(data = data[data$FCH4_dry<200,], aes(SWC_mean, FCH4_dry, color = Origin)) +
+  geom_point() + 
+  facet_wrap(~Location, scales = "free") +
+  labs(title = "Effect of SWC on CH4")
+
+#What is the effect of temp on CH4 
+ggplot(data = data[data$FCH4_dry<200,], aes(TS_mean,FCH4_dry, color = Origin)) +
+  geom_point() + 
+  facet_wrap(~Origin, scales = "free")
