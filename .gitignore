@@ -5,3 +5,7 @@
 
 # OS files
 .DS_Store
+
+# Analysis results
+outputs/*.png
+outputs/*.csv
