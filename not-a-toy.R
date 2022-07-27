@@ -25,20 +25,32 @@ lapply(files, read_file) %>%
     mutate(Timestamp = mdy_hm(`Date/Time`, tz = "UTC"),
            id = as.factor(as.numeric(id))) %>%
     select(Timestamp, id, round, vol,
-          `12CO2 Mean`, `13CO2 Mean`, notes) %>%
+           `12CO2 Mean`, `13CO2 Mean`, notes) %>%
     # calculate elapsed time for each sample
     arrange(id, round) %>%
     group_by(id) %>%
-    mutate(Elapsed = difftime(Timestamp, min(Timestamp), units = "days")) ->
+    mutate(time_days = difftime(Timestamp, min(Timestamp), units = "days"),
+           time_days = as.numeric(time_days)) ->
     incdat
 
 # ----- QA/QC -----
+
+# Each of the samples has a vol=2, round=T4 observation with bizarre data
+# I assume we want to drop it?
+incdat <- filter(incdat, vol > 2)
+# The id 10 sample's T5 observation has a bizarre `13CO2 Mean` number
+# (767, order of magnitude higher than any other in the column). Assume drop.
+incdat <- filter(incdat, `13CO2 Mean` < 700)
 
 incdat %>%
     pivot_longer(cols = c(`12CO2 Mean`, `13CO2 Mean`)) %>%
     ggplot(aes(round, value, group = id, color = id)) +
     geom_point() + geom_line() +
-    facet_wrap( ~ name, scales = "free")
+    ggtitle("POST DATA EXCLUSION") +
+    facet_wrap( ~ name, scales = "free") ->
+    p
+print(p)
+ggsave("./outputs/over_time.png", width = 8, height = 5)
 
 # ----- Unit conversion -----
 
@@ -110,42 +122,59 @@ cost_function <- function(params, time, m0, n0, AP_obs) {
 
 # ----- Main -----
 
-# General purpose optimizer
+# There are many ways to do this: dplyr's group_by/summarise,
+# base R's lapply, etc. Here we use a for loop.
 
-# Estimate starting k by slope of 13C
-# This follows paragraph 21 in section 2.4
-m <- lm(log(cal13CH4ml) ~ time, data = x)
-k0 <- unname(m$coefficients["time"]) * 1 / FRAC_K
+pk_results <- list()
 
-# Let optim() try different values for P and k until it finds best fit to data
-result <- optim(par = c("P" = 0.1, "k"= k0),
-                fn = cost_function,
-                # Do we want to constrain the optimizer so it can't produce <0 values for P and k?
-                # method = "L-BFGS-B",
-                # lower = c("P" = 0.0, "k"= 0.0),
-                # upper = c("P" = Inf, "k"= Inf),
+for(i in unique(incdat$id)) {
+    message("------------------- ", i)
+    dat <- filter(incdat, id == i)
 
-                # "..." that the optimizer will pass to cost_function:
-                time = x$time,
-                m0 = x$cal12CH4ml[1] + x$cal13CH4ml[1],
-                n0 = x$cal13CH4ml[1],
-                AP_obs = x$AP_obs)
+    # Estimate starting k by slope of 13C
+    # This follows paragraph 21 in section 2.4
+    m <- lm(log(cal13CH4ml) ~ time_days, data = dat)
+    k0 <- unname(m$coefficients["time_days"]) * 1 / FRAC_K
+    message("k0 = ", k0)
 
-message("Optimizer solution:")
-print(result)
+    # Let optim() try different values for P and k until it finds best fit to data
+    result <- optim(par = c("P" = 0.1, "k"= k0),
+                    fn = cost_function,
+                    # Do we want to constrain the optimizer so it can't produce <0 values for P and k?
+                    # method = "L-BFGS-B",
+                    # lower = c("P" = 0.0, "k"= 0.0),
+                    # upper = c("P" = Inf, "k"= Inf),
 
-# Predict based on the optimized parameters
-message("Predictions:")
-x$AP_pred <- ap_prediction(time = x$time,
-                           m0 = x$cal12CH4ml[1] + x$cal13CH4ml[1],
-                           n0 = x$cal13CH4ml[1],
-                           P = result$par["P"],
-                           k = result$par["k"])
-print(x)
+                    # "..." that the optimizer will pass to cost_function:
+                    time = dat$time_days,
+                    m0 = dat$cal12CH4ml[1] + dat$cal13CH4ml[1],
+                    n0 = dat$cal13CH4ml[1],
+                    AP_obs = dat$AP_obs)
 
-# Plot!
-comparison <- ggplot(x, aes(time)) + geom_point(aes(y = AP_obs)) +
+    message("Optimizer solution:")
+    print(result)
+    pk_results[[i]] <- tibble(P = result$par["P"], k = result$par["k"])
+
+    # Predict based on the optimized parameters
+    incdat[incdat$id == i, "AP_pred"] <-
+        ap_prediction(time = dat$time_days,
+                      m0 = dat$cal12CH4ml[1] + dat$cal13CH4ml[1],
+                      n0 = dat$cal13CH4ml[1],
+                      P = result$par["P"],
+                      k = result$par["k"])
+
+}
+
+pk_results <- bind_rows(pk_results, .id = "id")
+
+# ----- Plot results -----
+
+ap_pred <- ggplot(incdat, aes(time_days)) + geom_point(aes(y = AP_obs)) +
     geom_line(aes(y = AP_pred), linetype = 2) +
-    ggtitle(paste0("P = ", round(result$par["P"], 8), ", k = ", round(result$par["k"], 4)))
-print(comparison)
+    facet_wrap(~id, scales = "free")
+print(ap_pred)
+ggsave("./outputs/ap_pred.png")
 
+print(pk_results)
+
+message("All done.")
