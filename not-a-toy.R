@@ -45,7 +45,7 @@ lapply(files, read_file) %>%
 incdat <- filter(incdat, vol > 2)
 # The id 10 sample's T5 observation has a bizarre `13CO2 Mean` number
 # (767, order of magnitude higher than any other in the column). Assume drop.
-incdat <- filter(incdat, `HR 13CH4 Mean` < 700)
+#incdat <- filter(incdat, `HR 13CH4 Mean` < 700)
 
 incdat %>%
     pivot_longer(cols = c(`HR 12CH4 Mean`, `HR 13CH4 Mean`)) %>%
@@ -146,9 +146,9 @@ for(i in unique(incdat$id)) {
     result <- optim(par = c("P" = 0.1, "k"= k0),
                     fn = cost_function,
                     # Do we want to constrain the optimizer so it can't produce <0 values for P and k?
-                    # method = "L-BFGS-B",
-                    # lower = c("P" = 0.0, "k"= 0.0),
-                    # upper = c("P" = Inf, "k"= Inf),
+                     method = "L-BFGS-B",
+                     lower = c("P" = 0.0, "k"= -Inf),
+                     upper = c("P" = Inf, "k"= Inf),
 
                     # "..." that the optimizer will pass to cost_function:
                     time = dat$time_days,
@@ -158,7 +158,7 @@ for(i in unique(incdat$id)) {
 
     message("Optimizer solution:")
     print(result)
-    pk_results[[i]] <- tibble(P = result$par["P"], k = result$par["k"])
+    pk_results[[i]] <- tibble(P = result$par["P"], k = result$par["k"], k0 = k0)
 
     # Predict based on the optimized parameters
     incdat[incdat$id == i, "AP_pred"] <-
