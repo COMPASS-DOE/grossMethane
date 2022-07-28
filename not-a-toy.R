@@ -23,13 +23,18 @@ lapply(files, read_file) %>%
     # filter out test data (???) and clean up columns
     filter(id != "SERC100ppm") %>%
     mutate(Timestamp = mdy_hm(`Date/Time`, tz = "UTC"),
-           id = as.factor(as.numeric(id))) %>%
-    select(Timestamp, id, round, vol,
-           `12CO2 Mean`, `13CO2 Mean`, notes) %>%
+           id = as.factor(as.numeric(id)),
+           # T4 and T5 happened after 22 hours overnight in fridge;
+           # adjust these times, assuming fridge time counts for 50%
+           Timestamp_adj = if_else(round %in% c("T4", "T5"),
+                                         Timestamp - 0.50 * (22 * 60 * 60),
+                                         Timestamp)) %>%
+    select(Timestamp, Timestamp_adj, id, round, vol,
+           `HR 12CH4 Mean`, `HR 13CH4 Mean`, notes) %>%
     # calculate elapsed time for each sample
     arrange(id, round) %>%
     group_by(id) %>%
-    mutate(time_days = difftime(Timestamp, min(Timestamp), units = "days"),
+    mutate(time_days = difftime(Timestamp_adj, min(Timestamp_adj), units = "days"),
            time_days = as.numeric(time_days)) ->
     incdat
 
@@ -40,10 +45,10 @@ lapply(files, read_file) %>%
 incdat <- filter(incdat, vol > 2)
 # The id 10 sample's T5 observation has a bizarre `13CO2 Mean` number
 # (767, order of magnitude higher than any other in the column). Assume drop.
-incdat <- filter(incdat, `13CO2 Mean` < 700)
+incdat <- filter(incdat, `HR 13CH4 Mean` < 700)
 
 incdat %>%
-    pivot_longer(cols = c(`12CO2 Mean`, `13CO2 Mean`)) %>%
+    pivot_longer(cols = c(`HR 12CH4 Mean`, `HR 13CH4 Mean`)) %>%
     ggplot(aes(round, value, group = id, color = id)) +
     geom_point() + geom_line() +
     ggtitle("POST DATA EXCLUSION") +
@@ -62,8 +67,8 @@ ggsave("./outputs/over_time.png", width = 8, height = 5)
 #time = minutes_elapsed/(60*24)
 
 incdat %>%
-    mutate(cal12CH4ml = `12CO2 Mean` * 2.00013, # ppm to ml and correct for dilution
-           cal13CH4ml = `13CO2 Mean` * 2.00013, # multiply by 2.00013
+    mutate(cal12CH4ml = `HR 12CH4 Mean` * 2.00013, # ppm to ml and correct for dilution
+           cal13CH4ml = `HR 13CH4 Mean` * 2.00013, # multiply by 2.00013
            # calculate atom percent (AP) of 13C methane in sample over time
            AP_obs = cal13CH4ml / (cal12CH4ml + cal13CH4ml) * 100) ->
     incdat
