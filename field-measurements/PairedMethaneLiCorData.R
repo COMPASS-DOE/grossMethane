@@ -270,9 +270,11 @@ data %>%
 data %>% 
   dplyr::filter( FCO2_dry < 25 & FCO2_dry >-5, 
                  Origin %in% c('g_low','g_mid','g_up')) %>%
-  ggplot(aes(date(timestamp), FCO2_dry, color = TS_mean)) +
+  ggplot(aes(date(timestamp), FCO2_dry, color = TS_mean)) + 
+  scale_color_distiller(palette = "YlOrBr") +
   geom_point() +
-  facet_wrap(~Origin)
+  facet_wrap(~Origin) +
+  theme_bw()
 
 
 #What is the effect of SWC on CH4
@@ -284,4 +286,6 @@ ggplot(data = data[data$FCH4_dry<200,], aes(SWC_mean, FCH4_dry, color = Origin))
 #What is the effect of temp on CH4 
 ggplot(data = data[data$FCH4_dry<200,], aes(TS_mean,FCH4_dry, color = Origin)) +
   geom_point() + 
-  facet_wrap(~Origin, scales = "free")
+  facet_wrap(~Origin, scales = "free") + 
+  labs(title = "Effect of Temp on CH4")
+
