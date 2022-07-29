@@ -176,7 +176,11 @@ pk_results <- bind_rows(pk_results, .id = "id")
 
 ap_pred <- ggplot(incdat, aes(time_days)) + geom_point(aes(y = AP_obs)) +
     geom_line(aes(y = AP_pred), linetype = 2) +
-    facet_wrap(~id, scales = "free")
+    facet_wrap(~as.numeric(id)) +
+    geom_text(data = pk_results, x = 0.6, y = 1.5,
+              aes(label = paste("P =", format(P, digits = 1, nsmall = 1)))) +
+    geom_text(data = pk_results, x = 0.6, y = 1.4,
+              aes(label = paste("k =", format(k, digits = 2, nsmall = 2))))
 print(ap_pred)
 ggsave("./outputs/ap_pred.png")
 
