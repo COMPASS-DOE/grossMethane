@@ -1,5 +1,6 @@
 library(tibble)
 library(ggplot2)
+library(ggpmisc)
 library(dplyr)
 library(tidyr)
 library(readr)
@@ -183,3 +184,32 @@ ggsave("./outputs/ap_pred.png")
 print(pk_results)
 
 message("All done.")
+
+#temporary code ahead!
+#add soil moisture for trial samples (g H2O per g soil)
+#also dry soil mass
+soil <- data.frame(sm = c(0.44, 0.59, 0.62, 0.86, 1.14, 0.80, 0.56, 0.83, 1.19, 1.01),
+mass = c(47.2, 23.81, 32.97, 17.24, 21.38, 14.04, 32.15, 17.94, 8.53, 20.05))
+data <- bind_cols(pk_results, soil)
+#calculate umol of gas per g dry soil per day for Production
+data$umolPg <- (data$P * 44.64)/data$mass
+#calculate umol of gas per g dry soil per day for Consumption
+data$umolKg <- (data$k * 44.64)/data$mass
+
+ggplot(data = data, aes(umolPg, umolKg, colour = sm)) +
+    geom_point(size = 3) +
+    geom_smooth(method = lm, formula = y ~ x) +
+    stat_poly_eq(formula = y ~ x,
+                 aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")))
+
+ggplot(data = data, aes(sm, umolPg, colour = sm)) +
+    geom_point(size = 3) +
+    geom_smooth(method = lm, formula = y ~ x) +
+    stat_poly_eq(formula = y ~ x,
+                 aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")))
+
+ggplot(data = data, aes(sm, umolKg, colour = sm)) +
+    geom_point(size = 3) +
+    geom_smooth(method = lm, formula = y ~ x) +
+    stat_poly_eq(formula = y ~ x,
+                 aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")))
