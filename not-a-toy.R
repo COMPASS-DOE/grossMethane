@@ -22,14 +22,13 @@ read_file <- function(f) {
 lapply(files, read_file) %>%
     bind_rows() %>%
     # filter out test data (???) and clean up columns
-    filter(id != "SERC100ppm") %>%
+    filter(! id %in% c("SERC100ppm", "UMDzero", "SERCzero", "desert5000")) %>%
     mutate(Timestamp = mdy_hm(`Date/Time`, tz = "UTC"),
-           id = as.factor(as.numeric(id)),
-           # T4 and T5 happened after 22 hours overnight in fridge;
+           # Test data T4 and T5 happened after 22 hours overnight in fridge;
            # adjust these times, assuming fridge time counts for 50%
            Timestamp_adj = if_else(round %in% c("T4", "T5"),
-                                         Timestamp - 0.50 * (22 * 60 * 60),
-                                         Timestamp)) %>%
+                                         Timestamp, # - 0.50 * (22 * 60 * 60),
+                                          Timestamp)) %>%
     select(Timestamp, Timestamp_adj, id, round, vol,
            `HR 12CH4 Mean`, `HR 13CH4 Mean`, notes) %>%
     # calculate elapsed time for each sample
@@ -49,8 +48,9 @@ incdat <- filter(incdat, vol > 2)
 #incdat <- filter(incdat, `HR 13CH4 Mean` < 700)
 
 incdat %>%
+    mutate(id_numeric = as.numeric(id)) %>%
     pivot_longer(cols = c(`HR 12CH4 Mean`, `HR 13CH4 Mean`)) %>%
-    ggplot(aes(round, value, group = id, color = id)) +
+    ggplot(aes(round, value, group = id, color = factor(id_numeric))) +
     geom_point() + geom_line() +
     ggtitle("POST DATA EXCLUSION") +
     facet_wrap( ~ name, scales = "free") ->
@@ -175,9 +175,10 @@ pk_results <- bind_rows(pk_results, .id = "id")
 
 # ----- Plot results -----
 
-ap_pred <- ggplot(incdat, aes(time_days)) + geom_point(aes(y = AP_obs)) +
+ap_pred <- ggplot(incdat, aes(time_days)) +
+    geom_point(aes(y = AP_obs)) +
     geom_line(aes(y = AP_pred), linetype = 2) +
-    facet_wrap(~as.numeric(id)) +
+    facet_wrap(~as.numeric(id), scales = "free") +
     geom_text(data = pk_results, x = 0.6, y = 1.5,
               aes(label = paste("P =", format(P, digits = 1, nsmall = 1)))) +
     geom_text(data = pk_results, x = 0.6, y = 1.4,
