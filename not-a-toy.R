@@ -157,9 +157,26 @@ for(i in unique(incdat$id)) {
                     n0 = dat$cal13CH4ml[1],
                     AP_obs = dat$AP_obs)
 
+    result5 <- optim(par = c("P" = 0.1, "k"= k0),
+                    fn = cost_function,
+                    # Do we want to constrain the optimizer so it can't produce <0 values for P and k?
+                    method = "L-BFGS-B",
+                    lower = c("P" = 0.0, "k"= -Inf),
+                    upper = c("P" = Inf, "k"= Inf),
+
+                    # "..." that the optimizer will pass to cost_function:
+                    time = dat$time_days[1:5],
+                    m0 = dat$cal12CH4ml[1] + dat$cal13CH4ml[1],
+                    n0 = dat$cal13CH4ml[1],
+                    AP_obs = dat$AP_obs[1:5])
+
     message("Optimizer solution:")
     print(result)
-    pk_results[[i]] <- tibble(P = result$par["P"], k = result$par["k"], k0 = k0)
+    pk_results[[i]] <- tibble(P = result$par["P"],
+                              k = result$par["k"],
+                              P5 = result5$par["P"],
+                              k5 = result5$par["k"],
+                              k0 = k0)
 
     # Predict based on the optimized parameters
     incdat[incdat$id == i, "AP_pred"] <-
@@ -168,7 +185,12 @@ for(i in unique(incdat$id)) {
                       n0 = dat$cal13CH4ml[1],
                       P = result$par["P"],
                       k = result$par["k"])
-
+    incdat[incdat$id == i, "AP_pred5"] <-
+        ap_prediction(time = dat$time_days,
+                      m0 = dat$cal12CH4ml[1] + dat$cal13CH4ml[1],
+                      n0 = dat$cal13CH4ml[1],
+                      P = result5$par["P"],
+                      k = result5$par["k"])
 }
 
 pk_results <- bind_rows(pk_results, .id = "id")
@@ -178,6 +200,7 @@ pk_results <- bind_rows(pk_results, .id = "id")
 ap_pred <- ggplot(incdat, aes(time_days)) +
     geom_point(aes(y = AP_obs)) +
     geom_line(aes(y = AP_pred), linetype = 2) +
+    geom_line(aes(y = AP_pred5), linetype = 2, color = "red") +
     facet_wrap(~as.numeric(id), scales = "free") +
     geom_text(data = pk_results, x = 0.6, y = 1.5,
               aes(label = paste("P =", format(P, digits = 1, nsmall = 1)))) +
