@@ -60,13 +60,6 @@ ggsave("./outputs/over_time.png", width = 8, height = 5)
 
 # ----- Unit conversion -----
 
-#not sure how to calculate time elapsed between timestamps
-#also samples were in the fridge overnight between T3 and T4
-#using average minutes elapsed (with a fudge factor for the overnight) for now
-#minutes_elapsed = c(0, 102, 272, 386, 1013, 1176)
-#convert to days
-#time = minutes_elapsed/(60*24)
-
 incdat %>%
     mutate(cal12CH4ml = `HR 12CH4 Mean` * 2.00013, # ppm to ml and correct for dilution
            cal13CH4ml = `HR 13CH4 Mean` * 2.00013, # multiply by 2.00013
@@ -213,16 +206,23 @@ print(pk_results)
 
 message("All done.")
 
-#temporary code ahead!
-#add soil moisture for trial samples (g H2O per g soil)
-#also dry soil mass
-soil <- data.frame(sm = c(0.44, 0.59, 0.62, 0.86, 1.14, 0.80, 0.56, 0.83, 1.19, 1.01),
-mass = c(47.2, 23.81, 32.97, 17.24, 21.38, 14.04, 32.15, 17.94, 8.53, 20.05))
-data <- bind_cols(pk_results, soil)
+
+
+#read in soil moisture data
+soil <- read.csv("July22_soilmoisture.csv")
+data <- merge(soil, pk_results, by = "id")
+#calculate soil dry mass and fresh water mass
+data$mass <- data$jdry - data$jempty
+data$sm <- data$jfresh - data$jdry
 #calculate umol of gas per g dry soil per day for Production
 data$umolPg <- (data$P * 44.64)/data$mass
 #calculate umol of gas per g dry soil per day for Consumption
 data$umolKg <- (data$k * 44.64)/data$mass
+
+#add upland vs lowland, does not currently work
+upland <- c(60, 44, 85, 56, 86, 41, 54, 43, 58, 53, 87, 59, 55, 42)
+data %>% mutate(plot = if_else(id %in% upland, "upland",
+                "lowland")) -> data
 
 ggplot(data = data, aes(umolPg, umolKg, colour = sm)) +
     geom_point(size = 3) +
@@ -232,12 +232,14 @@ ggplot(data = data, aes(umolPg, umolKg, colour = sm)) +
 
 ggplot(data = data, aes(sm, umolPg, colour = sm)) +
     geom_point(size = 3) +
+    facet_grid(plot ~ .) +
     geom_smooth(method = lm, formula = y ~ x) +
     stat_poly_eq(formula = y ~ x,
                  aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")))
 
 ggplot(data = data, aes(sm, umolKg, colour = sm)) +
     geom_point(size = 3) +
+    facet_grid(plot ~ .) +
     geom_smooth(method = lm, formula = y ~ x) +
     stat_poly_eq(formula = y ~ x,
                  aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")))
