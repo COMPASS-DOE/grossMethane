@@ -217,7 +217,7 @@ ggplot(data = data[data$FCH4_dry<200,], aes(SWC_mean, FCH4_dry, color = Origin))
 
 # Compare CH4 and SWC_mean between plots
 data %>%
-  dplyr::filter( FCH4_dry < 50 & FCH4_dry >-5,
+  dplyr::filter( FCH4_dry < 400 & FCH4_dry >-5,
                  Origin %in% c('g_low','g_mid','g_up')) %>%
 ggplot(aes(date(timestamp), FCH4_dry, color = SWC_mean)) +
     scale_color_distiller(direction = 1) +
@@ -226,6 +226,7 @@ ggplot(aes(date(timestamp), FCH4_dry, color = SWC_mean)) +
   facet_wrap(~Origin) +
     theme_bw() +
     theme(axis.text.x = element_text(angle = 90))
+ggsave("CH4 flux by date (SWC).png", width = 6, height = 4)
 
 # Compare CO2 and SWC_mean between plots
 data %>%
@@ -238,10 +239,11 @@ data %>%
   facet_wrap(~Origin) +
     theme_bw() +
     theme(axis.text.x = element_text(angle = 90))
+ggsave("CO2 flux by date (SWC).png", width = 6, height = 4)
 
 # Compare CH4 and TS_mean between plots
 data %>%
-    dplyr::filter( FCH4_dry < 1000 & FCH4_dry >-5,
+    dplyr::filter( FCH4_dry < 400 & FCH4_dry >-5,
                    Origin %in% c('g_low','g_mid','g_up')) %>%
     ggplot(aes(date(timestamp), FCH4_dry, color = TS_mean)) +
     scale_color_distiller(palette = "YlOrBr", direction = 1) +
@@ -251,6 +253,7 @@ data %>%
     facet_wrap(~Origin) +
     theme_dark() +
     theme(axis.text.x = element_text(angle = 90))
+ggsave("CH4 flux by date (Temp).png", width = 6, height = 4)
 
 # Compare CO2 and TS_mean between plots
 data %>%
@@ -263,6 +266,7 @@ data %>%
   facet_wrap(~Origin) +
   theme_dark() +
     theme(axis.text.x = element_text(angle = 90))
+ggsave("CO2 flux by date (Temp).png", width = 6, height = 4)
 
 # Hopple Model Graph A (CO2)
 upland %>% bind_rows(lowland) -> uplow
@@ -275,6 +279,7 @@ ggplot(data = uplow, aes(week(timestamp), FCO2_dry)) +
     scale_color_manual(values = c("lowland-lowland" = "#f73bac",
                                 "upland-lowland" = "#9b42f5", "upland-upland" = "#2eab5e")) +
     theme_bw()
+ggsave("CO2 flux Hopple Model.png", width = 12.5, height = 4)
 
 # Hopple Model Graph B (CO2)
 upland %>% bind_rows(lowland) -> uplow
