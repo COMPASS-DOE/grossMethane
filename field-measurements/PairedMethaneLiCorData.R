@@ -101,71 +101,78 @@ data %>%
   geom_boxplot() +
   facet_grid(Origin~., scales = 'free')
 
+#Filter g_low and Control
+lowcontrol <- filter(data, Origin == "g_low" &
+                         Experiment == "Control")
 
-# FCO2_dry, TS_mean
-ggplot(data = data, aes(FCO2_dry, TS_mean)) +
-         geom_point(stat = "identity")
 
-# TS_mean, FCO2_dry -> without outliers
+
+
+
+
+#Soil Moisture Statistics
+SWC_stats <- data %>% group_by(Origin, Location) %>%
+    summarize(sdev = sd(SWC_mean),
+              minimun = min(SWC_mean),
+              maximum = max(SWC_mean),
+              mean = mean(SWC_mean),
+              med = median(SWC_mean)) %>%
+    mutate(variable = "SWC_mean")
+
+FCH4_stats <- data %>% group_by(Origin, Location) %>%
+    summarize(sdev = sd(FCH4_dry),
+              minimun = min(FCH4_dry),
+              maximum = max(FCH4_dry),
+              mean = mean(FCH4_dry),
+              med = median(FCH4_dry)) %>%
+    mutate(variable = "FCH4_dry")
+
+FCO2_stats <- data %>% group_by(Origin, Location) %>%
+    summarize(sdev = sd(FCO2_dry),
+              minimun = min(FCO2_dry),
+              maximum = max(FCO2_dry),
+              mean = mean(FCO2_dry),
+              med = median(FCO2_dry)) %>%
+    mutate(variable = "FCO2_dry")
+
+#Temperature Statistics
+TS_stats <- data %>% group_by(Origin, Location) %>%
+    summarize(sdev = sd(TS_mean),
+              minimun = min(TS_mean),
+              maximum = max(TS_mean),
+              mean = mean(TS_mean),
+              med = median(TS_mean)) %>%
+    mutate(variable = "TS_mean")
+
+FCH4_stats <- data %>% group_by(Origin, Location) %>%
+    summarize(sdev = sd(FCH4_dry),
+              minimun = min(FCH4_dry),
+              maximum = max(FCH4_dry),
+              mean = mean(FCH4_dry),
+              med = median(FCH4_dry)) %>%
+    mutate(variable = "FCH4_dry")
+
+stats <- bind_rows(TS_stats,FCH4_stats)
+
+
+
+#Temp & CO2
 ggplot(data = data[data$FCO2_dry<25,], aes(TS_mean, FCO2_dry)) +
   geom_point()
 
-# date, FCO2_dry -> advanced
-ggplot(data = data, aes(date(timestamp),FCO2_dry)) +
-  geom_boxplot(aes(group = date(timestamp), fill = Origin))
-
-# date, FCH4_dry -> advanced
-ggplot(data = data[data$FCH4_dry<300,], aes(date(timestamp),FCH4_dry)) +
-    geom_boxplot(aes(group = date(timestamp), fill = Origin))
-
-#Date series plots -> CO2
-ggplot(data = data, aes(date, FCO2_dry)) +
-  geom_point()
-
-#Date series plots -> CH4
-ggplot(data = data, aes(hour(timestamp), FCH4_dry)) +
-  geom_point()
-
-#Date series plots -> TS_mean
-ggplot(data = data, aes(date, TS_mean)) +
-  geom_point()
-
-#Date series plots -> SWC_mean
-ggplot(data = data, aes(hour(timestamp), SWC_mean)) +
-  geom_point()
-
-#What is the effect of temp on CO2
-# As Temp increases, CO2 also increases
-ggplot(data = data[data$FCO2_dry<25,], aes(TS_mean, FCO2_dry)) +
-  geom_point()
-
-#What is the effect of temp on CH4
-# As Temp increases, CH4 remains the same
+#Temp & CH4
 ggplot(data = data[data$FCH4_dry<200,], aes(TS_mean, FCH4_dry)) +
   geom_point()
 
-#What is the effect of SWC on CO2
-# As SWC increases, CO2 remains the same
+#SWC & CO2
 ggplot(data = data[data$FCO2_dry<25,], aes(SWC_mean,FCO2_dry)) +
   geom_point()
 
-#What is the effect of SWC on CH4
-# As SWC increases, CH4 increases slightly  *filter out negative values for CH4
+#SWC & CH4
 ggplot(data = data[data$FCH4_dry<200,], aes(SWC_mean,FCH4_dry)) +
   geom_point()
 
-#Filter g_low and Control
-lowcontrol <- filter(data, Origin == "g_low" &
-                            Experiment == "Control")
 
-
-#Get boxes to be colored by origin
-# helpful hint - use [] to filter out outliers
-
-#200 for CH4
-ggplot(data = data[data$FCH4_dry<200,],
-       aes(Experiment, FCH4_dry,)) +
-  geom_boxplot()
 
 # Good graph
 ggplot(data = data, aes(date(timestamp),SWC_mean)) +
@@ -175,6 +182,8 @@ ggplot(data = data, aes(date(timestamp),SWC_mean)) +
 ggplot(data, aes(date(timestamp), FCH4_dry, color = SWC_mean)) +
   geom_point() +
   facet_wrap(~Origin, scales = "free")
+
+
 
 #experimental graphing (finalists)
 # 1
@@ -187,83 +196,28 @@ data %>%
   facet_grid(Location~Experiment, scales = 'free') +
   theme(axis.text.x = element_text(angle = 90))
 
-#experimental graphing
-data %>%
-  dplyr::filter(FCO2_dry < 50) %>%
-  ggplot() +
-  aes(x = SWC_mean, y = FCO2_dry) +
-  geom_boxplot() +
-  facet_grid(Origin~., scales = 'free')
 
 
-#What is the effect of SWC on CH4
+#Temp on CH4 - Comparing Origins
+ggplot(data = data[data$FCH4_dry<200,], aes(TS_mean,FCH4_dry, color = Origin)) +
+    geom_point() +
+    facet_wrap(~Origin, scales = "free")
+
+#SWC & CH4 - Comparing Origins
 ggplot(data = data[data$FCH4_dry<200,], aes(SWC_mean, FCH4_dry, color = Origin)) +
   geom_point() +
   facet_wrap(~Location, scales = "free") +
   labs(title = "Effect of SWC on CH4")
 
-SWC_stats <- data %>% group_by(Origin, Location) %>%
-  summarize(sdev = sd(SWC_mean),
-            minimun = min(SWC_mean),
-            maximum = max(SWC_mean),
-            mean = mean(SWC_mean),
-            med = median(SWC_mean)) %>%
-  mutate(variable = "SWC_mean")
-
-FCH4_stats <- data %>% group_by(Origin, Location) %>%
-  summarize(sdev = sd(FCH4_dry),
-            minimun = min(FCH4_dry),
-            maximum = max(FCH4_dry),
-            mean = mean(FCH4_dry),
-            med = median(FCH4_dry)) %>%
-  mutate(variable = "FCH4_dry")
-
-FCO2_stats <- data %>% group_by(Origin, Location) %>%
-  summarize(sdev = sd(FCO2_dry),
-            minimun = min(FCO2_dry),
-            maximum = max(FCO2_dry),
-            mean = mean(FCO2_dry),
-            med = median(FCO2_dry)) %>%
-  mutate(variable = "FCO2_dry")
 
 
 
 
-#What is the effect of temp on CH4
-ggplot(data = data[data$FCH4_dry<200,], aes(TS_mean,FCH4_dry, color = Origin)) +
-    geom_point() +
-    facet_wrap(~Origin, scales = "free")
+#Graphs for powerpoint presentation
 
-TS_stats <- data %>% group_by(Origin, Location) %>%
-  summarize(sdev = sd(TS_mean),
-            minimun = min(TS_mean),
-            maximum = max(TS_mean),
-            mean = mean(TS_mean),
-            med = median(TS_mean)) %>%
-  mutate(variable = "TS_mean")
-
-FCH4_stats <- data %>% group_by(Origin, Location) %>%
-  summarize(sdev = sd(FCH4_dry),
-            minimun = min(FCH4_dry),
-            maximum = max(FCH4_dry),
-            mean = mean(FCH4_dry),
-            med = median(FCH4_dry)) %>%
-  mutate(variable = "FCH4_dry")
-
-stats <- bind_rows(TS_stats,FCH4_stats)
-
-# Date Series
-ggplot(data = data, aes(date(timestamp),FCO2_dry)) +
-  geom_boxplot(aes(group = date(timestamp), fill = Origin)) +
-  theme(axis.text.x = element_text(angle = 90))
-
-
-
-#Optional graphs for powerpoint presentation
-
-# Compare CH4 and SWC_mean between plots -----YES
+# Compare CH4 and SWC_mean between plots
 data %>%
-  dplyr::filter( FCH4_dry < 1000 & FCH4_dry >-5,
+  dplyr::filter( FCH4_dry < 50 & FCH4_dry >-5,
                  Origin %in% c('g_low','g_mid','g_up')) %>%
 ggplot(aes(date(timestamp), FCH4_dry, color = SWC_mean)) +
     scale_color_distiller(direction = 1) +
@@ -273,7 +227,7 @@ ggplot(aes(date(timestamp), FCH4_dry, color = SWC_mean)) +
     theme_bw() +
     theme(axis.text.x = element_text(angle = 90))
 
-# Compare CO2 and SWC_mean between plots -----YES
+# Compare CO2 and SWC_mean between plots
 data %>%
   dplyr::filter( FCO2_dry < 25 & FCO2_dry >-5,
                  Origin %in% c('g_low','g_mid','g_up')) %>%
@@ -285,7 +239,7 @@ data %>%
     theme_bw() +
     theme(axis.text.x = element_text(angle = 90))
 
-# Compare CH4 and TS_mean between plots -----YES
+# Compare CH4 and TS_mean between plots
 data %>%
     dplyr::filter( FCH4_dry < 1000 & FCH4_dry >-5,
                    Origin %in% c('g_low','g_mid','g_up')) %>%
@@ -298,7 +252,7 @@ data %>%
     theme_dark() +
     theme(axis.text.x = element_text(angle = 90))
 
-# Compare CO2 and TS_mean between plots -----YES
+# Compare CO2 and TS_mean between plots
 data %>%
   dplyr::filter( FCO2_dry < 25 & FCO2_dry >-5,
                  Origin %in% c('g_low','g_mid','g_up')) %>%
@@ -310,37 +264,71 @@ data %>%
   theme_dark() +
     theme(axis.text.x = element_text(angle = 90))
 
-# Hopple Model Graph A
-ggplot(data = data[data$FCO2_dry < 25,], aes(date(timestamp), FCO2_dry)) +
-    geom_boxplot(aes(group = date(timestamp))) +
-    geom_smooth()
-
-#experimental A
+# Hopple Model Graph A (CO2)
 upland %>% bind_rows(lowland) -> uplow
-ggplot(data = uplow, aes(date(timestamp), FCO2_dry)) +
-    geom_boxplot(aes(group = interaction(Movement, date(timestamp)), fill = Movement)) +
-    geom_smooth(aes(color = Movement)) +
-    labs(x = "Date", y = "Flux CO2") +
+ggplot(data = uplow, aes(week(timestamp), FCO2_dry)) +
+    geom_boxplot(alpha = 0.2, width = 0.4, aes(color = Movement, group = interaction(Movement, week(timestamp)), fill = Movement)) +
+    geom_smooth(aes(color = Movement), se = FALSE) +
+    labs(x = "Calendar Week", y = "Flux CO2") +
     scale_fill_manual(values = c("lowland-lowland" = "#f73bac",
-                                 "upland-lowland" = "lavender", "upland-upland" = "#19cf9b"))
+                                 "upland-lowland" = "#cb81e6", "upland-upland" = "#19cf9b")) +
+    scale_color_manual(values = c("lowland-lowland" = "#f73bac",
+                                "upland-lowland" = "#9b42f5", "upland-upland" = "#2eab5e")) +
+    theme_bw()
 
-# Hopple Model Graph B
+# Hopple Model Graph B (CO2)
 upland %>% bind_rows(lowland) -> uplow
 ggplot(data = uplow, aes(Movement, FCO2_dry, fill = Movement)) +
-    geom_boxplot() +
+    geom_boxplot(alpha = 0.5, aes(color = Movement)) +
     labs(x = "Movement", y = "Flux CO2") +
     scale_fill_manual(values = c("lowland-lowland" = "#f73bac",
-                                 "upland-lowland" = "lavender", "upland-upland" = "#19cf9b"))
+                                 "upland-lowland" = "#cb81e6", "upland-upland" = "#19cf9b")) +
+    scale_color_manual(values = c("lowland-lowland" = "#f73bac",
+                                "upland-lowland" = "#9b42f5", "upland-upland" = "#2eab5e")) +
+    theme_bw()
 
-#What is the effect of SWC on CH4
-ggplot(data = data[data$FCH4_dry<200,], aes(SWC_mean, FCH4_dry, color = Origin)) +
-  geom_point() +
-  facet_wrap(~Location, scales = "free") +
-  labs(title = "Effect of SWC on CH4")
 
-#What is the effect of temp on CH4
-ggplot(data = data[data$FCH4_dry<200,], aes(TS_mean,FCH4_dry, color = Origin)) +
-  geom_point() +
-  facet_wrap(~Origin, scales = "free") +
-  labs(title = "Effect of Temp on CH4")
 
+#Graphs for Research Report
+
+#CO2
+data %>%
+    dplyr::filter(Origin %in% c('g_low','g_mid','g_up'),
+                  week(timestamp) == 19) %>%
+    ggplot(aes(week(timestamp), FCO2_dry, fill = Location)) +
+    geom_boxplot(aes(group = interaction(week(timestamp),
+                                         Location))) +
+    facet_grid(.~Origin) +
+    labs(title = "Interaction of Origin & Location") +
+    theme_bw()
+
+#CH4
+data %>%
+    dplyr::filter(FCH4_dry < 10 & FCH4_dry >-5,
+                Origin %in% c('g_low','g_mid','g_up'),
+                week(timestamp) == 26) %>%
+    ggplot(aes(week(timestamp), FCH4_dry, fill = Location)) +
+    geom_boxplot(aes(group = interaction(week(timestamp),
+                                         Location))) +
+    facet_grid(.~Origin) +
+    labs(title = "Interaction of Origin & Location") +
+    theme_bw()
+
+
+data %>%
+    dplyr::filter( FCH4_dry < 5 & FCH4_dry >-5,
+                   Origin %in% c('g_low','g_mid','g_up')) %>%
+    ggplot() +
+    aes( x = timestamp, y = FCH4_dry, fill = Experiment ) +
+    geom_point() +
+    facet_grid(Location~Experiment, scales = 'free') +
+    theme(axis.text.x = element_text(angle = 90))
+
+# Good graph
+ggplot(data = data, aes(date(timestamp),SWC_mean)) +
+    geom_boxplot(aes(group = date(timestamp), fill = Origin))
+
+# timestamp example
+ggplot(data, aes(date(timestamp), FCH4_dry, color = SWC_mean)) +
+    geom_point() +
+    facet_wrap(~Origin, scales = "free")
