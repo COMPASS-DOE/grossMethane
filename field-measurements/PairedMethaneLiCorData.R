@@ -324,6 +324,7 @@ data %>%
     facet_grid(Location~Experiment, scales = 'free') +
     theme(axis.text.x = element_text(angle = 90))
 
+
 # Good graph
 ggplot(data = data, aes(date(timestamp),SWC_mean)) +
     geom_boxplot(aes(group = date(timestamp), fill = Origin))
@@ -332,3 +333,44 @@ ggplot(data = data, aes(date(timestamp),SWC_mean)) +
 ggplot(data, aes(date(timestamp), FCH4_dry, color = SWC_mean)) +
     geom_point() +
     facet_wrap(~Origin, scales = "free")
+
+#What is the effect of SWC on CO2
+ggplot(data = data[data$FCO2_dry<50,], aes(SWC_mean, FCO2_dry, color = Origin)) +
+  geom_point() +
+  facet_wrap(~Location, scales = "free") +
+  labs(title = "Effect of SWC on CO2")
+
+#What is the effect of temp on CH4
+ggplot(data = data[data$FCH4_dry<200,], aes(TS_mean,FCH4_dry, color = Origin)) +
+  geom_point() +
+  facet_wrap(~Origin, scales = "free") +
+  labs(title = "Effect of Temperature on CH4")
+
+#What is the effect of temp on CO2
+ggplot(data = data[data$FCO2_dry<50,], aes(TS_mean,FCO2_dry, color = Origin)) +
+  geom_point() +
+  facet_wrap(~Origin, scales = "free") +
+  labs(title = "Effect of Temperature on CO2")
+
+
+#Facet Location - compare SWC with fluxes
+data %>%
+  ggplot() +
+  geom_point(aes(x = SWC_mean, y = FCO2_dry)) +
+  facet_wrap(~Location) +
+  labs(title = "Soil Moisture Effect On CO2")
+
+data %>%
+  ggplot() +
+  geom_point(aes(x = SWC_mean, y = FCH4_dry, colour = "blue")) +
+  facet_wrap(~Location, scales = "free") +
+  labs(title = "Soil Moisture Effect On CH4")
+
+#Facet individual plot & collar location
+data %>%
+  dplyr::filter(Location %in% c("g_low")) %>%
+  ggplot() +
+  geom_point(aes(x = SWC_mean, y = FCH4_dry)) +
+  facet_wrap(~Location + Collar, scales = "free") +
+  labs(title = "Soil Moisture Effect On CH4")
+
