@@ -5,5 +5,4 @@
 
 # OS files
 .DS_Store
-field-measurements/goshdarnit.R
 *.png
