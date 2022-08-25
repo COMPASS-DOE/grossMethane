@@ -1,19 +1,56 @@
 library(tibble)
 library(ggplot2)
+library(dplyr)
+library(lubridate)
 theme_set(theme_bw())
 
-# Original # Test data
-# x <- tibble(time = c(0.0, 0.45, 0.92, 1.4, 1.8, 2.3, 2.8),
-#             cal12CH4ml = c(734, 731, 729, 729, 728, 725, 725) / 1000000,
-#             cal13CH4ml = c(103, 103, 102, 102, 102, 101, 101) / 1000000,
+
+# x <- tibble(time = c(0.0, 0.47, 0.60),
+#             cal12CH4ml = c(0.0016, 0.0013, 0.0010),
+#             cal13CH4ml = c(0.000024, 0.000019, 0.000015),
 #             # Calculate atom percent (AP) of 13C methane in sample over time
 #             AP_obs = cal13CH4ml / (cal12CH4ml + cal13CH4ml) * 100)
 
-x <- tibble(time = c(0.0, 0.47, 0.60),
-            cal12CH4ml = c(0.0016, 0.0013, 0.0010),
-            cal13CH4ml = c(0.000024, 0.000019, 0.000015),
-            # Calculate atom percent (AP) of 13C methane in sample over time
-            AP_obs = cal13CH4ml / (cal12CH4ml + cal13CH4ml) * 100)
+#read in .csv
+a <- read.csv("picarro/CFIDS2333_SSIM_20220721_135555.csv")
+b <- read.csv("picarro/CFIDS2333_SSIM_20220721_185547.csv")
+c <- read.csv("picarro/CFIDS2333_SSIM_20220722_164917.csv")
+
+#no text in this file's id column, so need to tell R to treat it as a character
+b$id <- as.character(b$id)
+
+data <- bind_rows(a, b, c)
+data$timestamp <- mdy_hm(data$Date.Time, tz = "UTC")
+
+#all data for sample 1, ignore 2 ml sample volume at T4
+#select id, round, notes, timestamp, CH4delta, CH4delta std, CO2delta, CO2delta std,
+#ppm12CH4, ppm12CH4 std, ppm13CH4, ppm13CH4, ppm12CO2, ppm12CO2 std, ppm13CO2, ppm13CO2,
+#ppmH20, ppmH20 std
+data %>% filter(id == "1",
+             vol == 10) %>%
+    select("id","round","vol","notes","timestamp","HR.Delta.iCH4.Mean",
+           "HR.Delta.iCH4.Std","Delta.13CO2.Mean","Delta.13CO2.Std",
+           "HR.12CH4.Mean","HR.12CH4.Std","HR.13CH4.Mean","HR.13CH4.Std",
+           "X12CO2.Mean","X12CO2.Std","X13CO2.Mean","X13CO2.Std","H2O.Mean",
+           "H2O.Std") -> x1
+#not sure how to calculate time elapsed between timestamps
+#also samples were in the fridge overnight between T3 and T4
+#using average minutes elapsed (with a fudge factor for the overnight) for now
+minutes_elapsed = c(0, 102, 272, 386, 1013, 1176)
+#convert to days
+time = minutes_elapsed/(60*24)
+
+
+x <- tibble(time,
+cal12CH4ml = x1$HR.12CH4.Mean * 2.00013, #ppm to ml and correct for dilution
+cal13CH4ml = x1$HR.13CH4.Mean * 2.00013, #multiply by 2.00013
+#Calculate atom percent (AP) of 13C methane in sample over time
+AP_obs = cal13CH4ml / (cal12CH4ml + cal13CH4ml) * 100)
+
+
+
+#ppm to ml
+#multiply by 0.00013 
 
 
 # Constants
