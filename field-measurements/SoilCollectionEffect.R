@@ -12,8 +12,8 @@ data <- read.csv("licorRTA.csv")
 #remove data from days of soil sampling for testing
 #7/27 and 7/29
 data %>%
-  filter(as.character(date) %in% c("2022-07-27",
-                                   "2022-07-29"),
+  filter(date %in% c("7/27/2022",
+                     "7/29/2022"),
          Location != "g_mid") %>%
   select(-Site, -Installed, -timestamp,
          -Notes, -Core, -Core_placement,
@@ -46,23 +46,36 @@ one %>%
 #rename columns
 #average values, timestamp?
 
-
-
 ggplot(wideReps, aes(FCH4_dry.1, FCH4_dry.2)) +
-  geom_point() + geom_abline(slope = 1, intercept = 0) +
-    geom_smooth(method = lm) +
-  ggtitle("Methane Pre and Post \n with outliers")
+    geom_point() + geom_abline(slope = 1, intercept = 0) +
+    stat_poly_eq(method = "lm") + stat_poly_line(method = "lm") +
+    ggtitle("Methane Pre and Post \n with outliers")
 
 ggplot(wideReps[wideReps$FCH4_dry.2 < 3000 &
-                  wideReps$FCH4_dry.1 < 1000,], aes(FCH4_dry.1, FCH4_dry.2)) +
-  geom_point() + geom_abline(slope = 1, intercept = 0) +
-  geom_smooth(method = lm) +
-  ggtitle("Methane Pre and Post \n no outliers")
+                  wideReps$FCH4_dry.1 < 1000,],
+       aes(FCH4_dry.1, FCH4_dry.2)) +
+    geom_point() + geom_abline(slope = 1, intercept = 0) +
+    stat_poly_eq(method = "lm") + stat_poly_line(method = "lm") +
+    ggtitle("Methane Pre and Post \n no outliers")
 
 ggplot(wideReps, aes(FCO2_dry.1, FCO2_dry.2)) +
-  geom_point() + geom_abline(slope = 1, intercept = 0) +
-  geom_smooth(method = lm) +
-  ggtitle("CO2 Pre and Post")
+    geom_point() + geom_abline(slope = 1, intercept = 0) +
+    stat_poly_eq(method = "lm") + stat_poly_line(method = "lm") +
+    ggtitle("CO2 Pre and Post")
 
+#means are not different
+t.test(wideReps$FCH4_dry.1, wideReps$FCH4_dry.2)
 
+#but variances are, even with outliers removed
+var.test(wideReps$FCH4_dry.1, wideReps$FCH4_dry.2)
+var.test(wideReps[wideReps$FCH4_dry.1 < 1000,]$FCH4_dry.1,
+         wideReps[wideReps$FCH4_dry.2 < 3000,]$FCH4_dry.2)
 
+#keeping all data, but using replicate measures as distinct
+#meaning they will not be averaged together
+
+#just for fun
+#which collars have increased methane flux after sampling?
+wideReps$post <- wideReps$FCH4_dry.2 - wideReps$FCH4_dry.1
+wideReps %>%
+    filter(post > 0) -> enriched
