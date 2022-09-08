@@ -11,6 +11,7 @@
 #load ggplot2
 library(ggplot2)
 library(dplyr)
+library(tidyr)
 library(lubridate)
 
 #read in collar ids and data
@@ -19,9 +20,8 @@ data_raw <- read.csv("licordata.csv")
 
 #NOTE!
 #difference between export.csv and licordata.csv
-#extra rows removed to make R happy
-#And three rows removed where collar height is incorrect
-#This could also be fixed in SoilFlux Pro
+#extra rows removed and headings changed to make R happy
+#export.csv has R2 of linear fits
 
 #format timestamp
 data_raw$timestamp <- mdy_hm(data_raw$datetime, tz="EST")
@@ -77,6 +77,47 @@ data$Location <- recode_factor(data$Location,
 #Labels for graphing later
 origin.labs <- c("lowland origin", "midland origin", "upland origin")
 names(origin.labs) <- c("g_low", "g_mid", "g_up")
+
+
+#remove data from days of soil sampling for testing
+#7/27 and 7/29
+data %>%
+    filter(as.character(date) %in% c("2022-07-27",
+                                     "2022-07-29"),
+           Location != "g_mid") %>%
+    select(-Site, -Installed, -timestamp,
+           -Notes, -Core, -Core_placement,
+           -date, -datetime, -Experiment,
+           -Height) -> collection
+
+collection[collection$Reps == 1,] ->rep1
+#remove duplicate 85 for now (see note for BBL help below)
+rep1 <- slice(rep1, -33)
+collection[collection$Reps == 2,] -> rep2
+add <- slice(rep2, 9)
+one <- bind_rows(rep1, add)
+rep2 <- slice(rep2, -9)
+collection[collection$Reps == 3,] -> rep3
+two <- bind_rows(rep2, rep3)
+two <- select(two, -Reps)
+
+one %>%
+    select(-Reps) %>%
+    full_join(two, by = c("Collar", "Origin", "Location"),
+              suffix = c(".1", ".2")) %>%
+    relocate(Origin, Location,
+             .after= Collar) -> wideReps
+
+
+#rename columns
+#average values, timestamp?
+
+#summarise by date, take average values
+# data %>%
+#     group_by(date, Collar) %>%
+#     summarise(n = n()) -> CollarDate
+
+
 
 #summer 2022 version of Hopple graph
 data %>% filter(Location == "g_up",
