@@ -113,7 +113,7 @@ data %>%
     summarise(timestamp = mean(timestamp),
               FCH4 = median(FCH4_dry),
               FCO2 = median(FCO2_dry),
-              sWC = mean(SWC_mean),
+              SWC = mean(SWC_mean),
               TA = mean(TA_mean),
               TS = mean(TS_mean)) -> d4sum
 
@@ -128,4 +128,16 @@ data %>%
 d4sum %>%
     ungroup() %>%
     left_join(info, by = c("Collar","Reps", "date")) %>%
-    unique() -> f_dat
+    unique() %>%
+    filter(if_else(Location == "g_low",
+                   FCH4 < 2000, FCH4 < 300)) %>%
+    relocate(date, .after = Reps)-> f_dat
+
+#Collar Height
+height_stats <- data %>% group_by(Collar) %>%
+    summarize(sdev = sd(Height),
+              minimun = min(Height),
+              maximum = max(Height),
+              mean = mean(Height),
+              med = median(Height)) %>%
+    mutate(variable = "Height")
