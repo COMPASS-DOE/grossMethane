@@ -3,6 +3,9 @@
 .RData
 .Ruserdata
 
+#field-measurements
+field-measurements/*.csv
+
 # OS files
 .DS_Store
 
@@ -10,4 +13,3 @@
 # Analysis results
 outputs/*.png
 outputs/*.csv
-
