@@ -111,7 +111,7 @@ data %>%
               TA = mean(TA_mean),
               TS = mean(TS_mean)) %>%
     filter(if_else(Location == "g_low",
-                   FCH4 < 2000, FCH4 < 300)) %>%
+                   FCH4 < 2000, FCH4 < 300)) %>% #trim outliers
     relocate(date, .after = Reps)-> f_dat
 
 #export for later use
