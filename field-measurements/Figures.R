@@ -7,7 +7,7 @@ ggplot(f_dat, aes(week(timestamp), FCH4, fill = Origin)) +
 f_dat %>%
     filter(Location == "g_low") -> g_low
 
-ggplot(g_low[g_low$FCH4 < 200,], aes(week(timestamp), FCH4, fill = Origin)) +
+ggplot(g_low[g_low$FCH4 < 100,], aes(week(timestamp), FCH4, fill = Origin)) +
     geom_boxplot(aes(group = interaction(week(timestamp), Origin)))
 
 ggplot(g_low[g_low$Origin == "g_mid",], aes(week(timestamp), FCH4, color = Collar)) +
@@ -41,7 +41,7 @@ ggplot(data = uplow, aes(week(timestamp), FCO2)) +
   theme_bw()
 #ggsave("CO2 flux Hopple Model.png", width = 12.5, height = 4)
 
-ggplot(data = uplow, aes(week(timestamp), FCH4)) +
+ggplot(data = uplow[uplow$FCH4 < 200,], aes(week(timestamp), FCH4)) +
     geom_boxplot(alpha = 0.2, width = 0.4, aes(color = Movement, group = interaction(Movement, week(timestamp)), fill = Movement)) +
     geom_smooth(aes(color = Movement), se = FALSE) +
     labs(x = "Calendar Week", y = "Flux CH4") +
@@ -63,7 +63,7 @@ ggplot(data = uplow, aes(Movement, FCO2, fill = Movement)) +
                                 "upland-lowland" = "#9b42f5", "upland-upland" = "#2eab5e")) +
   theme_bw()
 
-ggplot(data = uplow, aes(Movement, FCH4, fill = Movement)) +
+ggplot(data = uplow[uplow$FCH4 < 200,], aes(Movement, FCH4, fill = Movement)) +
     geom_boxplot(alpha = 0.5, aes(color = Movement)) +
     labs(x = "Movement", y = "Flux CH4") +
     scale_fill_manual(values = c("lowland-lowland" = "#f73bac",

@@ -1,5 +1,5 @@
 
-#This code is to read-in and graph
+#This code is to read-in and clean-up
 #2022 soil methane and respiration data
 #from the HS (GCREW) transect of the transplant experiment
 #see Hopple et al 2022 for more detail:
@@ -18,14 +18,16 @@ collars <- read.csv("cores_collars.csv")
 data_raw <- read.csv("licordata.csv")
 
 #NOTE!
-#difference between export.csv and licordata.csv
-#extra rows removed and headings changed to make R happy
+#difference between export.csv (from Soil Flux Pro)
+#& licordata.csv, licordata.csv has extra rows removed
+#and headings changed to make R happy
 #export.csv has R2 of linear fits
 
 #format timestamp
 data_raw$timestamp <- mdy_hm(data_raw$datetime, tz="EST")
 #check dates
-unique(date(data_raw$timestamp))
+#should have May 11th to August 17th
+sort(unique(date(data_raw$timestamp)))
 #create seperate date column
 data_raw$date <- date(data_raw$timestamp)
 
@@ -77,9 +79,6 @@ data$Location <- recode_factor(data$Location,
 origin.labs <- c("lowland origin", "midland origin", "upland origin")
 names(origin.labs) <- c("g_low", "g_mid", "g_up")
 
-#export for later use
-#write.csv(data, "licorRTA.csv")
-
 #summarize within sampling sessions
 
 #step one remove 2nd measurements from days of soil sampling
@@ -103,36 +102,23 @@ data %>%
            %in% c("2022-07-27",
                   "2022-07-29")) %>%
     bind_rows(add) %>%
-    select(date, Collar, Reps,
-           FCH4_dry, FCO2_dry,
-           SWC_mean, EC_mean,
-           TS_mean, TA_mean,
-           timestamp, Origin,
-           Location, Experiment) %>%
-    group_by(date, Collar, Reps) %>%
+    group_by(date, Collar, Reps, Origin,
+             Location, Experiment) %>%
     summarise(timestamp = mean(timestamp),
               FCH4 = median(FCH4_dry),
               FCO2 = median(FCO2_dry),
               SWC = mean(SWC_mean),
               TA = mean(TA_mean),
-              TS = mean(TS_mean)) -> d4sum
-
-#isolate treatment info
-data %>%
-    ungroup() %>%
-    select(Collar, Reps, date,
-           Origin, Location,
-           Experiment) -> info
-
-#final field data
-d4sum %>%
-    ungroup() %>%
-    left_join(info, by = c("Collar","Reps", "date")) %>%
-    unique() %>%
+              TS = mean(TS_mean)) %>%
     filter(if_else(Location == "g_low",
                    FCH4 < 2000, FCH4 < 300)) %>%
     relocate(date, .after = Reps)-> f_dat
 
+#export for later use
+#RTA = Ready To Analyze
+#write.csv(f_dat, "licorRTA.csv")
+
+#for the curious
 #Collar Height
 height_stats <- data %>% group_by(Collar) %>%
     summarize(sdev = sd(Height),
