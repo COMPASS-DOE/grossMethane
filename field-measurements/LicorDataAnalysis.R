@@ -14,7 +14,6 @@ f_dat$date <- as.Date(f_dat$date)
 f_dat$timestamp <- ymd_hms(f_dat$timestam[], tz="EST")
 
 #are data normally distributed?
-num_dat <- c("FCH4", "FCO2", "SWC", "TA", "TS")
 par(mfrow = c(2, 3))
 for (x in 9:13) {
     var = names(f_dat)[x]

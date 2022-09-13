@@ -20,7 +20,7 @@ f_dat[f_dat$date == "2022-05-11",]$SWC <- 0
 is.na(f_dat$SWC) <- !f_dat$SWC
 
 Olabs <- c("lowland", "midslope", "upslope", "midstream", "upstream")
-Llabs <- c("lowland", "midslope", "upsloe")
+Llabs <- c("lowland", "midslope", "upslope")
 months <- c("May", "June", "July", "August")
 
 #explore relationship between SWC and g_mid origin soils in lowland
@@ -42,6 +42,18 @@ ggplot(g_low, aes(SWC, FCH4, color = as.factor(Origin))) +
     geom_smooth(method = lm, formula = y ~ x, se = FALSE) +
     stat_poly_eq(formula = y ~ x,
                  aes(label = paste(..p.value.label..,
+                                   ..rr.label..,
+                                   sep = "~~~"))) +
+    scale_color_discrete(name = "Soil Origin",
+                         labels = Olabs) +
+    theme_bw()
+
+ggplot(g_low, aes(SWC, FCH4)) +
+    geom_point(aes(color = as.factor(Origin))) +
+    geom_smooth(method = lm, formula = y ~ x, se = FALSE) +
+    stat_poly_eq(formula = y ~ x,
+                 aes(label = paste(..p.value.label..,
+                                   ..eq.label..,
                                    ..rr.label..,
                                    sep = "~~~"))) +
     scale_color_discrete(name = "Soil Origin",

@@ -92,7 +92,7 @@ data %>%
            Location != "g_mid") -> collection
 #cut out first measurement for collar 30 on the 27th
 data %>%
-    filter(Reps == 2, Collar == 30,
+    filter(Reps == 2, Collar %in% c("29", "30"),
            as.character(date) == "2022-07-29") %>%
     bind_rows(collection) -> add
 
@@ -110,8 +110,6 @@ data %>%
               SWC = mean(SWC_mean),
               TA = mean(TA_mean),
               TS = mean(TS_mean)) %>%
-    filter(if_else(Location == "g_low",
-                   FCH4 < 2000, FCH4 < 300)) %>% #trim outliers
     relocate(date, .after = Reps)-> f_dat
 
 #export for later use
