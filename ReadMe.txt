@@ -1,6 +1,6 @@
 May 4th 2022
 author: KA Morris
 
-Purpose: procesing code for 13C-methane incubation method for calculating gross CH4 production and consumptions
+Purpose: procesing code for 13C-methane incubation method for calculating gross CH4 production and consumption
 
-current model is a toy model for working out the methodology
+current model is prototype, needs validation
