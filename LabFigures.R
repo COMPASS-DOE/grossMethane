@@ -100,9 +100,55 @@ ggplot(data = data,
        aes(FCH4, umolPg, colour = as.factor(Collar))) +
   geom_point(size = 3)
 
-ggplot(data = allDat,
+ggplot(data = allDat[allDat$Collar != 52,],
+       aes(round, (cal13CH4ml + cal12CH4ml), colour = sm)) +
+    geom_point(aes(shape = Location), size = 3) +
+    geom_line(aes(group = Collar)) +
+    ylab("ppm CH4") + xlab("Sampling Time") +
+    scale_color_continuous(name = "Soil Moisture") +
+    scale_shape_discrete(labels = c("lowland",
+                                    "upslope")) +
+    facet_grid(Origin ~ ., labeller = as_labeller(seriously))
+
+ggplot(data = allDat[allDat$Collar != 52,],
+       aes(round, AP_obs, colour = sm)) +
+    geom_point(aes(shape = Location), size = 3) +
+    geom_line(aes(group = Collar)) +
+    ylim(0.75,1.75) +
+    ylab("Atom Percent 13C") + xlab("Sampling Time") +
+    scale_color_continuous(name = "Soil Moisture") +
+    scale_shape_discrete(labels = c("lowland",
+                                    "upslope")) +
+    facet_grid(Origin ~ ., labeller = as_labeller(seriously))
+
+ggplot(data = allDat[allDat$Location != "g_up",],
+       aes(round, (cal13CH4ml + cal12CH4ml), colour = Origin)) +
+    geom_point(size = 3) +
+    geom_line(aes(group = Collar)) +
+    ylab("ppm CH4") + xlab("Sampling Time") +
+    scale_color_discrete(labels = Olabs)
+
+seriously <- c('g_low' = "lowland",
+               'g_mid' = "midslope",
+               'g_up' = "upslope",
+               'midstream' = "midstream",
+               'upstream' = "upstream")
+
+ggplot(data = allDat[allDat$Collar != 52,],
        aes(round, AP_obs, colour = sm)) +
            geom_point(size = 3) +
            geom_line(aes(group = Collar)) +
            facet_grid(Location ~ Origin)
+allDat %>%
+    select(Location, Origin, Collar,
+           umolKg, umolPg, sm, FCH4,
+           net, k0) %>%
+    unique() -> graph
+
+ggplot(graph[graph$Collar != 52,],
+       aes(Location, net, fill = Origin)) +
+    scale_x_discrete(labels = c("lowland",
+                                "upslope")) +
+    scale_fill_discrete(labels = Olabs) +
+    geom_boxplot()
 
