@@ -1,4 +1,4 @@
-# This code is for analyzing and graphing
+# This code is for analyzing
 # gross methane fluxes from GCREW soils.
 # 13C tracer incubations were conducted the last week of July 22
 # in wetland edge (aka lowland aka transition) and upland soils
