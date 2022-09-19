@@ -61,6 +61,13 @@ ggplot(g_low, aes(SWC, FCH4)) +
     theme_bw()
 
 
+ggplot(f_dat[f_dat$FCH4 < 50 &
+                 f_dat$Location != "g_mid",], aes(Location, FCH4, fill = Origin)) +
+    scale_fill_discrete(name = "Soil Origin",
+                        labels = Olabs) +
+    scale_x_discrete(labels = c("lowland", "upslope")) +
+    geom_boxplot() + theme_bw()
+
 #
 #summer 2022 versions of Hopple.et.al 2022 graphs
 #

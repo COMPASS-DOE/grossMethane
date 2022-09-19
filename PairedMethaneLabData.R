@@ -59,6 +59,8 @@ g_dat %>%
   relocate(c(jempty, jfresh, jdry), .after = rtK) %>%
   left_join(f_dat4g_dat, by = "Collar") -> data
 
+#write.csv(data, "PairedData.csv")
+
 consumption <- aov(rtK ~ Location + sm,
                data = data)
 Anova(consumption, type="III")
