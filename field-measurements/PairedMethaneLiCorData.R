@@ -102,6 +102,7 @@ data %>%
            %in% c("2022-07-27",
                   "2022-07-29")) %>%
     bind_rows(add) %>%
+    mutate_at(c("SWC", "TA", "TS"), ~na_if(., 0)) %>%
     group_by(date, Collar, Reps, Origin,
              Location, Experiment) %>%
     summarise(timestamp = mean(timestamp),
