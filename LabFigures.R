@@ -23,34 +23,52 @@ labellies <- c('g_low' = "lowland",
                'midstream' = "midstream",
                'upstream' = "upstream")
 
-paired <- read.csv("PairedData.csv")
+deltas <- read.csv("incDeltas.csv")
 incdat <- read.csv("2022IncDat.csv")
+paired <- read.csv("PairedData.csv")
 
+deltas$Collar <- as.character(deltas$id)
 incdat$Collar <- as.character(incdat$id)
 paired$Collar <- as.character(paired$Collar)
+
+deltas %>%
+    select(-X, -id, -Timestamp,
+           -HR.12CH4.Mean,
+           -HR.13CH4.Mean,) -> deltas2add
 
 #calculate methane totals and net changes
 incdat %>%
     select(-AP_pred5, -AP_pred, -notes, -vol,
            -X, -Timestamp, -Timestamp_adj, -id) %>%
+    left_join(deltas2add, by = c("Collar" = "Collar",
+                                 "round" = "round")) %>%
     pivot_wider(id_cols = Collar, names_from = round,
                 values_from = c(HR.12CH4.Mean,
                                 HR.13CH4.Mean,
+                                HR.Delta.iCH4.Mean,
+                                Delta.13CO2.Mean,
                                 cal12CH4ml,
                                 cal13CH4ml,
                                 AP_obs)) %>%
     mutate(net = (cal12CH4ml_T4 + cal13CH4ml_T4) - (cal12CH4ml_T0 + cal13CH4ml_T0),
            intial = (cal12CH4ml_T0 + cal13CH4ml_T0),
            final = (cal12CH4ml_T4 + cal13CH4ml_T4),
+           dCH4_i = HR.Delta.iCH4.Mean_T0,
+           dCH4_f = HR.Delta.iCH4.Mean_T4,
+           dCO2_i = Delta.13CO2.Mean_T0,
+           dCO2_f = Delta.13CO2.Mean_T4,
            APintial = AP_obs_T0,
            APfinal = AP_obs_T4) %>%
-    select(Collar, net, intial, final, APintial, APfinal) -> keep
+    select(Collar, net, intial, final, dCH4_i, dCH4_f,
+           dCO2_i, dCO2_f, APintial, APfinal) -> keep
 
 
 #make incubation data with Collar id's
 incdat %>%
     select(-id, -AP_pred5, -AP_pred, -notes, -vol,
            -X, -Timestamp, -Timestamp_adj) %>%
+    left_join(deltas2add, by = c("Collar" = "Collar",
+                                 "round" = "round")) %>%
     left_join(keep, by = "Collar") %>%
     left_join(paired, by = "Collar") %>%
     select(-X) %>%
@@ -112,13 +130,12 @@ ggplot(data = allData[allData$Collar != 52,],
     scale_color_continuous(name = "Soil Moisture") +
     scale_shape_discrete(labels = c("lowland",
                                     "upslope")) +
-    facet_grid(Origin ~ ., labeller = as_labeller(labellies))
+    facet_wrap(Origin ~ ., labeller = as_labeller(labellies))
 
 #accumulation of methane over incubation
 #need adjustment for dilution!
 #headspace and sample
-#lowland only
-ggplot(data = allData[allData$Location != "g_up",],
+ggplot(data = allData, #[allData$Location != "g_up",],
        aes(round, (cal13CH4ml + cal12CH4ml), colour = Origin)) +
     geom_point(size = 3) +
     geom_line(aes(group = Collar)) +
@@ -127,17 +144,15 @@ ggplot(data = allData[allData$Location != "g_up",],
 
 
 #change in 13C signature over incubation
-ggplot(data = allData[allData$Collar != 52,],
-       aes(round, AP_obs, color = sm)) +
+ggplot(data = allData, #[allData$Collar != 52,],
+       aes(round, HR.Delta.iCH4.Mean, color = sm)) +
     geom_point(aes(shape = Location), size = 3) +
     geom_line(aes(group = Collar)) +
-    ylim(0.5,2) +
-    ylab("Atom Percent 13C") + xlab("Sampling Time") +
+    ylab("per mil") + xlab("Sampling Time") +
     scale_color_continuous(name = "Soil Moisture") +
     scale_shape_discrete(labels = c("lowland",
                                     "upslope")) +
-    facet_grid(Origin ~ ., labeller = as_labeller(labellies))
-
+    facet_wrap(Origin ~ ., labeller = as_labeller(labellies))
 
 
 #drop redundant rows from long form data
@@ -155,3 +170,18 @@ ggplot(graph[graph$Collar != 52,],
     scale_fill_discrete(labels = Olabs) +
     geom_boxplot()
 
+#summary of production
+ggplot(graph,#[graph$Collar != 52,],
+       aes(Location, umolPg, fill = Origin)) +
+    scale_x_discrete(labels = c("lowland",
+                                "upslope")) +
+    scale_fill_discrete(labels = Olabs) +
+    geom_boxplot()
+
+#summary of net rates
+ggplot(graph,#[graph$Collar != 52,],
+       aes(Location, umolPg+umolKg, fill = Origin)) +
+    scale_x_discrete(labels = c("lowland",
+                                "upslope")) +
+    scale_fill_discrete(labels = Olabs) +
+    geom_boxplot()

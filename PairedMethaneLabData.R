@@ -6,18 +6,37 @@
 # September 2022
 # Kendalynn A. Morris
 
-#read gross rate results generated on September 13th
-#from commit "venture into toyland"
-
 library(dplyr)
 library(ggplot2)
 library(ggpmisc)
 library(car)
 
+#read gross rate results generated on September 13th
+#from commit "venture into toyland"
+pk_results <- read.csv("13092022_pk_results.csv")
+
 Olabs <- c("lowland", "midslope", "upslope", "midstream", "upstream")
 Llabs <- c("lowland", "midslope", "upslope")
 
-pk_results <- read.csv("13092022_pk_results.csv")
+#read incubation data
+# Get names of data files
+files <- list.files("picarro/", pattern = "*.csv", full.names = TRUE)
+# Helper function
+read_file <- function(f) {
+    message("Reading ", f)
+    read_csv(f, col_types = "ccdcddcddddddddddddddddddddddccccc") %>%
+        mutate(File = basename(f))
+}
+# Read in and pre-process data
+lapply(files, read_file) %>%
+    bind_rows() %>%
+    filter(! id %in% c("SERC100ppm", "UMDzero", "SERCzero", "desert5000")) %>%
+    mutate(Timestamp = mdy_hm(`Date/Time`, tz = "UTC")) %>%
+    select(Timestamp, id, round, `HR Delta iCH4 Mean`,
+    `HR Delta iCH4 Std`, `Delta 13CO2 Mean`, `Delta 13CO2 Std`,
+    `HR 12CH4 Mean`, `HR 13CH4 Mean`) -> deltas
+
+#write.csv(deltas, "incDeltas.csv")
 
 #read in soil moisture data
 soil <- read.csv("field-measurements/July22_soilmoisture.csv")

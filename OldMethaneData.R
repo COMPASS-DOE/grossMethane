@@ -102,8 +102,8 @@ old_dat$month <- recode_factor(old_dat$month,
                         "5" = "May",
                         "7" = "July")
 
-ggplot(old_dat, aes(month(timestamp), SWC, fill = Origin)) +
-  geom_boxplot(aes(group = interaction(month(timestamp), Origin))) +
+ggplot(old_dat, aes(month, SWC, fill = Origin)) +
+  geom_boxplot(aes(group = interaction(month, Origin))) +
   scale_fill_discrete(name = "Soil Origin",
                       labels = Olabs) +
   theme_bw()
@@ -199,10 +199,10 @@ ggplot(data = uplow, aes(Movement, FCH4, fill = Movement)) +
                                 "upland-lowland" = "#9b42f5", "upland-upland" = "#2eab5e")) +
   theme_bw()
 
-
+#memory issues?
 library(nlme)
 ungroup(old_dat) -> old_dat
-CH4lme <- lme(FCH4 ~ Experiment*date,
+CH4lme <- lme(FCH4 ~ Origin*date,
               data = old_dat,
               random = ~ Collar|Location)
 summary(CH4lme)
