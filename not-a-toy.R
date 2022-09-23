@@ -23,18 +23,14 @@ lapply(files, read_file) %>%
     bind_rows() %>%
     # filter out test data (???) and clean up columns
     filter(! id %in% c("SERC100ppm", "UMDzero", "SERCzero", "desert5000")) %>%
-    mutate(Timestamp = mdy_hm(`Date/Time`, tz = "UTC"),
-           # Test data T4 and T5 happened after 22 hours overnight in fridge;
-           # adjust these times, assuming fridge time counts for 50%
-           Timestamp_adj = if_else(round %in% c("T4", "T5"),
-                                         Timestamp, # - 0.50 * (22 * 60 * 60),
-                                          Timestamp)) %>%
-    select(Timestamp, Timestamp_adj, id, round, vol,
+    mutate(Timestamp = mdy_hm(`Date/Time`, tz = "UTC")) %>%
+    select(Timestamp, id, round, vol,
            `HR 12CH4 Mean`, `HR 13CH4 Mean`, notes) %>%
     # calculate elapsed time for each sample
     arrange(id, round) %>%
     group_by(id) %>%
-    mutate(time_days = difftime(Timestamp_adj, min(Timestamp_adj), units = "days"),
+    mutate(time_days = difftime(Timestamp, min(Timestamp),
+                                units = "days"),
            time_days = as.numeric(time_days)) ->
     incdat
 
@@ -63,6 +59,8 @@ ggsave("./outputs/over_time.png", width = 8, height = 5)
 incdat %>%
     mutate(cal12CH4ml = `HR 12CH4 Mean` * 2.00013, # ppm to ml and correct for dilution
            cal13CH4ml = `HR 13CH4 Mean` * 2.00013, # multiply by 2.00013
+           cal12CH4ml = ifelse(round != "T0", cal12CH4ml, cal12CH4ml * 1.07),
+           cal13CH4ml = ifelse(round != "T0", cal13CH4ml, cal13CH4ml * 1.07),
            # calculate atom percent (AP) of 13C methane in sample over time
            AP_obs = cal13CH4ml / (cal12CH4ml + cal13CH4ml) * 100) ->
     incdat
@@ -137,12 +135,12 @@ for(i in unique(incdat$id)) {
     message("k0 = ", k0)
 
     # Let optim() try different values for P and k until it finds best fit to data
-    result <- optim(par = c("P" = 0.1, "k"= k0),
+    result <- optim(par = c("P" = 0.01, "k"= k0),
                     fn = cost_function,
                     # Do we want to constrain the optimizer so it can't produce <0 values for P and k?
                      method = "L-BFGS-B",
                      lower = c("P" = 0.0, "k"= -Inf),
-                     upper = c("P" = Inf, "k"= Inf),
+                     upper = c("P" = Inf, "k"= 0.00001),
 
                     # "..." that the optimizer will pass to cost_function:
                     time = dat$time_days,
@@ -150,25 +148,11 @@ for(i in unique(incdat$id)) {
                     n0 = dat$cal13CH4ml[1],
                     AP_obs = dat$AP_obs)
 
-    result5 <- optim(par = c("P" = 0.1, "k"= k0),
-                    fn = cost_function,
-                    # Do we want to constrain the optimizer so it can't produce <0 values for P and k?
-                    method = "L-BFGS-B",
-                    lower = c("P" = 0.0, "k"= -Inf),
-                    upper = c("P" = Inf, "k"= Inf),
-
-                    # "..." that the optimizer will pass to cost_function:
-                    time = dat$time_days[1:5],
-                    m0 = dat$cal12CH4ml[1] + dat$cal13CH4ml[1],
-                    n0 = dat$cal13CH4ml[1],
-                    AP_obs = dat$AP_obs[1:5])
 
     message("Optimizer solution:")
     print(result)
     pk_results[[i]] <- tibble(P = result$par["P"],
                               k = result$par["k"],
-                              P5 = result5$par["P"],
-                              k5 = result5$par["k"],
                               k0 = k0)
 
     # Predict based on the optimized parameters
@@ -178,12 +162,6 @@ for(i in unique(incdat$id)) {
                       n0 = dat$cal13CH4ml[1],
                       P = result$par["P"],
                       k = result$par["k"])
-    incdat[incdat$id == i, "AP_pred5"] <-
-        ap_prediction(time = dat$time_days,
-                      m0 = dat$cal12CH4ml[1] + dat$cal13CH4ml[1],
-                      n0 = dat$cal13CH4ml[1],
-                      P = result5$par["P"],
-                      k = result5$par["k"])
 }
 
 pk_results <- bind_rows(pk_results, .id = "id")
@@ -193,7 +171,6 @@ pk_results <- bind_rows(pk_results, .id = "id")
 ap_pred <- ggplot(incdat, aes(time_days)) +
     geom_point(aes(y = AP_obs)) +
     geom_line(aes(y = AP_pred), linetype = 2) +
-    geom_line(aes(y = AP_pred5), linetype = 2, color = "red") +
     facet_wrap(~as.numeric(id), scales = "free") +
     geom_text(data = pk_results, x = 0.6, y = 1.5,
               aes(label = paste("P =", format(P, digits = 1, nsmall = 1)))) +
