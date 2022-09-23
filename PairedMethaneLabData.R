@@ -11,9 +11,10 @@ library(ggplot2)
 library(ggpmisc)
 library(car)
 
-#read gross rate results generated on September 13th
-#from commit "venture into toyland"
-pk_results <- read.csv("13092022_pk_results.csv")
+#read gross rate results generated on September 23th
+#from commit "correct for zero air dilution"
+pk_results <- read.csv("23092022_pk_results.csv")
+pk_results %>% select(-X) -> pk_results
 
 Olabs <- c("lowland", "midslope", "upslope", "midstream", "upstream")
 Llabs <- c("lowland", "midslope", "upslope")
@@ -73,12 +74,11 @@ f_dat %>%
   select(-X) -> f_dat4g_dat
 
 g_dat %>%
-  select(-X, -P5, -k5) %>%
   rename(Collar = id) %>%
   relocate(c(jempty, jfresh, jdry), .after = rtK) %>%
   left_join(f_dat4g_dat, by = "Collar") -> data
 
-#write.csv(data, "PairedData.csv")
+write.csv(data, "PairedData.csv")
 
 consumption <- aov(rtK ~ Location + sm,
                data = data)

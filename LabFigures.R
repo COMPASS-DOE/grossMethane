@@ -42,7 +42,7 @@ incdat %>%
            -X, -Timestamp, -Timestamp_adj, -id) %>%
     left_join(deltas2add, by = c("Collar" = "Collar",
                                  "round" = "round")) %>%
-    pivot_wider(id_cols = Collar, names_from = round,
+  pivot_wider(id_cols = Collar, names_from = round,
                 values_from = c(HR.12CH4.Mean,
                                 HR.13CH4.Mean,
                                 HR.Delta.iCH4.Mean,
@@ -185,3 +185,53 @@ ggplot(graph,#[graph$Collar != 52,],
                                 "upslope")) +
     scale_fill_discrete(labels = Olabs) +
     geom_boxplot()
+
+#trouble makers (k calculated as 0)
+badActors <- c(18, 3, 32, 61, 71, 86)
+
+allData %>%
+    filter(Collar %in% as.character(badActors)) -> baddies
+
+ggplot(data = baddies,
+       aes(round, (cal13CH4ml + cal12CH4ml), colour = Origin)) +
+    geom_point(size = 3) +
+    geom_line(aes(group = Collar)) +
+    ylab("ppm CH4") + xlab("Sampling Time") +
+    scale_color_discrete(labels = Olabs)
+
+allData %>%
+    group_by(Collar, round) %>%
+    mutate(total = cal13CH4ml + cal12CH4ml) %>%
+    pivot_wider(id_cols = c(Collar, Origin, Location),
+                names_from = round,
+                values_from = c(total,
+                                HR.13CH4.Mean,
+                                HR.Delta.iCH4.Mean,
+                                Delta.13CO2.Mean,
+                                cal12CH4ml,
+                                cal13CH4ml,
+                                AP_obs)) %>%
+    filter(total_T3 > total_T2) -> weirdos_prime
+
+#collar ids
+unique(weirdos_prime$Collar)
+
+allData %>%
+    filter(Collar %in% c("49", "52" ,"61")) %>%
+    select(Collar, umolPg, umolKg,
+           Location, Origin,
+           sm, dCH4_i, dCH4_f,
+           dCO2_i, dCO2_f) %>%
+    distinct() -> weirdos
+
+ggplot(weirdos,
+       aes(dCH4_f, umolPg+umolKg, color = Collar)) +
+    geom_point(size = 5)
+
+allData %>%
+    select(Collar, umolPg, umolKg,
+           Location, Origin,
+           sm, dCH4_i, dCH4_f,
+           dCO2_i, dCO2_f) %>%
+    distinct() %>%
+    filter((umolPg + umolKg) > 0)-> overP
