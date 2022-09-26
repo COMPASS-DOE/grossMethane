@@ -172,7 +172,7 @@ ggplot(graph[graph$Collar != 52,],
     geom_boxplot()
 
 #summary of production
-ggplot(graph,#[graph$Collar != 52,],
+ggplot(graph,
        aes(Location, umolPg, fill = Origin)) +
     scale_x_discrete(labels = c("lowland",
                                 "upslope")) +
@@ -180,7 +180,7 @@ ggplot(graph,#[graph$Collar != 52,],
     geom_boxplot()
 
 #summary of net rates
-ggplot(graph,#[graph$Collar != 52,],
+ggplot(graph,
        aes(Location, umolPg+umolKg, fill = Origin)) +
     scale_x_discrete(labels = c("lowland",
                                 "upslope")) +
