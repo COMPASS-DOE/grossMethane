@@ -130,8 +130,8 @@ for(i in unique(incdat$id)) {
 
     # Estimate starting k by slope of 13C
     # This follows paragraph 21 in section 2.4
-    m <- lm(log(cal13CH4ml) ~ time_days, data = dat)
-    k0 <- unname(m$coefficients["time_days"]) * 1 / FRAC_K
+    m <- lm((cal13CH4ml+cal12CH4ml) ~ time_days, data = dat)
+    k0 <- unname(m$coefficients["time_days"])
     message("k0 = ", k0)
 
     # Let optim() try different values for P and k until it finds best fit to data
@@ -140,7 +140,7 @@ for(i in unique(incdat$id)) {
                     # Do we want to constrain the optimizer so it can't produce <0 values for P and k?
                      method = "L-BFGS-B",
                      lower = c("P" = 0.0, "k"= -Inf),
-                     upper = c("P" = Inf, "k"= 0.00001),
+                     upper = c("P" = Inf, "k"= Inf),
 
                     # "..." that the optimizer will pass to cost_function:
                     time = dat$time_days,
@@ -183,3 +183,23 @@ print(pk_results)
 
 message("All done.")
 
+#multiply k by average inital mls of methane
+pk_results$ml_k <- pk_results$k * 8.8
+pk_results$net <- pk_results$P + pk_results$ml_k
+
+pk_results %>%
+    filter(net > 0) -> issues
+unique(issues$id)
+lm_issues <- c("44", "52", "58", "59", "71")
+log_lm_issues <- c("18", "19", "3", "30", "32", "41", "61", "71", "86")
+#"18" "19" "3"  "30" "32" "41" "61" "71" "86"
+
+pk_results %>%
+    filter(k > 0) -> same
+unique(same$id)
+#"18" "3"  "32" "41" "61" "71" "86"
+lm_same <- c("44", "52", "58", "59", "71")
+log_lm_same <- c("18", "3", "32", "41", "61", "71", "86")
+
+setdiff(lm_issues, log_lm_issues)
+setdiff(lm_same, log_lm_same)

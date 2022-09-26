@@ -158,8 +158,9 @@ ggplot(data = allData, #[allData$Collar != 52,],
 #drop redundant rows from long form data
 allData %>%
     select(Location, Origin, Collar,
-           umolKg, umolPg, sm, FCH4,
-           net, k0) %>%
+           umolKg, umolPg, sm,
+           mass, FCH4, dCH4_f,
+           dCH4_i, net, k0) %>%
     unique() -> graph
 
 #summary of net incubation
@@ -186,52 +187,12 @@ ggplot(graph,#[graph$Collar != 52,],
     scale_fill_discrete(labels = Olabs) +
     geom_boxplot()
 
-#trouble makers (k calculated as 0)
-badActors <- c(18, 3, 32, 61, 71, 86)
 
-allData %>%
-    filter(Collar %in% as.character(badActors)) -> baddies
+#summary of terminal delta values
+ggplot(graph,
+       aes(Collar, dCH4_f,  color = Origin)) +
+    facet_wrap(. ~ Location, scales = "free",
+               labeller = as_labeller(labellies)) +
+    scale_color_discrete(labels = Olabs) +
+    geom_point(aes(size = sm)) + theme_bw()
 
-ggplot(data = baddies,
-       aes(round, (cal13CH4ml + cal12CH4ml), colour = Origin)) +
-    geom_point(size = 3) +
-    geom_line(aes(group = Collar)) +
-    ylab("ppm CH4") + xlab("Sampling Time") +
-    scale_color_discrete(labels = Olabs)
-
-allData %>%
-    group_by(Collar, round) %>%
-    mutate(total = cal13CH4ml + cal12CH4ml) %>%
-    pivot_wider(id_cols = c(Collar, Origin, Location),
-                names_from = round,
-                values_from = c(total,
-                                HR.13CH4.Mean,
-                                HR.Delta.iCH4.Mean,
-                                Delta.13CO2.Mean,
-                                cal12CH4ml,
-                                cal13CH4ml,
-                                AP_obs)) %>%
-    filter(total_T3 > total_T2) -> weirdos_prime
-
-#collar ids
-unique(weirdos_prime$Collar)
-
-allData %>%
-    filter(Collar %in% c("49", "52" ,"61")) %>%
-    select(Collar, umolPg, umolKg,
-           Location, Origin,
-           sm, dCH4_i, dCH4_f,
-           dCO2_i, dCO2_f) %>%
-    distinct() -> weirdos
-
-ggplot(weirdos,
-       aes(dCH4_f, umolPg+umolKg, color = Collar)) +
-    geom_point(size = 5)
-
-allData %>%
-    select(Collar, umolPg, umolKg,
-           Location, Origin,
-           sm, dCH4_i, dCH4_f,
-           dCO2_i, dCO2_f) %>%
-    distinct() %>%
-    filter((umolPg + umolKg) > 0)-> overP
