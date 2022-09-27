@@ -130,7 +130,7 @@ for(i in unique(incdat$id)) {
 
     # Estimate starting k by slope of 13C
     # This follows paragraph 21 in section 2.4
-    m <- lm(log(cal13CH4ml+cal12CH4ml) ~ time_days, data = dat)
+    m <- lm((cal13CH4ml+cal12CH4ml) ~ time_days, data = dat)
     k0 <- unname(m$coefficients["time_days"])
     message("k0 = ", k0)
 
@@ -183,27 +183,26 @@ print(pk_results)
 
 message("All done.")
 
-#multiply k by average inital mls of methane
-#should be changed to average mls of methane?
-pk_results$ml_k <- pk_results$k * 8.8
+#multiply k by overall average mls of methane
+pk_results$ml_k <- pk_results$k * 3
 pk_results$net <- pk_results$P + pk_results$ml_k
 
 pk_results %>%
     filter(net > 0) -> issues
 unique(issues$id)
-lm_issues <- c("44", "52", "58", "59", "71")
-ln_lm_issues <- c("18", "19", "3", "30", "32", "41", "61", "71", "86")
-#"18" "19" "3"  "30" "32" "41" "61" "71" "86"
+lm_issues <- c("44", "52", "58", "59", "71", "72")
+ln_lm_issues <- c("18", "19", "3", "30", "31", "32", "41", "61", "71", "72", "86")
+
 
 pk_results %>%
     filter(k > 0) -> same
 unique(same$id)
-#"18" "3"  "32" "41" "61" "71" "86"
+
 lm_same <- c("44", "52", "58", "59", "71")
 ln_lm_same <- c("18", "3", "32", "41", "61", "71", "86")
 
 intersect(lm_issues, ln_lm_issues)
 intersect(lm_same, ln_lm_same)
 
-write.csv(pk_results, "26092022_ln_results.csv")
+write.csv(pk_results, "27092022_results.csv")
 
