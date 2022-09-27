@@ -204,5 +204,5 @@ ln_lm_same <- c("18", "3", "32", "41", "61", "71", "86")
 intersect(lm_issues, ln_lm_issues)
 intersect(lm_same, ln_lm_same)
 
-write.csv(pk_results, "27092022_results.csv")
+#write.csv(pk_results, "27092022_results.csv")
 

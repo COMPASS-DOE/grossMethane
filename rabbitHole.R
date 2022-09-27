@@ -15,8 +15,8 @@ labellies <- c('g_low' = "lowland",
                'midstream' = "midstream",
                'upstream' = "upstream")
 
-ln_dat <- read.csv("26092022_ln_results.csv")
-dat <- read.csv("26092022_results.csv")
+ln_dat <- read.csv("27092022_ln_results.csv")
+dat <- read.csv("27092022_results.csv")
 paired <- read.csv("PairedData.csv")
 
 ln_dat %>%
@@ -45,7 +45,7 @@ paired %>%
     mutate(Collar = as.character(paired$Collar))  %>%
     right_join(long, by = "Collar") %>%
     mutate(umolPg = (P * 44.64)/mass, #calculate umol of gas per g dry soil per day for Production
-           umolKg = (ml_k * 44.64/mass) #calculate umol of gas per g dry soil per day for Consumption
+           umolkg = (ml_k * 44.64/mass) #calculate umol of gas per g dry soil per day for Consumption
            ) -> graph
 
 ggplot(graph,
@@ -56,3 +56,46 @@ ggplot(graph,
     facet_grid(k0fit~.) +
     geom_boxplot()
 
+graph %>%
+    group_by(Collar) %>%
+    mutate(P = mean(P, na.rm = TRUE),
+              k = mean(k, na.rm = TRUE),
+              k0 = mean(k0, na.rm = TRUE),
+              ml_k = mean(ml_k, na.rm = TRUE),
+              net_sd = sd(net, na.rm = TRUE),
+              net = mean(net, na.rm = TRUE),
+              umolPg = mean(umolPg, na.rm = TRUE),
+              umolkg = mean(umolkg, na.rm = TRUE),
+              n = n()) %>%
+    ungroup() -> graph_sums
+
+#summary of net rates
+ggplot(graph_sums,
+       aes(Location, net, fill = Origin)) +
+    scale_x_discrete(labels = c("lowland",
+                                "upslope")) +
+    scale_fill_discrete(labels = Olabs) +
+    geom_boxplot()
+
+#summary of production
+ggplot(graph_sums,
+       aes(Location, umolPg, fill = Origin)) +
+    scale_x_discrete(labels = c("lowland",
+                                "upslope")) +
+    scale_fill_discrete(labels = Olabs) +
+    geom_boxplot()
+
+ggplot(graph_sums,
+       aes(sm, umolPg, color = Origin,
+           shape = Location)) +
+    geom_point(size = 3)
+
+ggplot(graph_sums,
+       aes(sm, umolkg, color = Origin,
+           shape = Location)) +
+    geom_point(size = 3)
+
+ggplot(graph_sums,
+       aes(umolPg, umolkg, color = Origin,
+           shape = Location)) +
+    geom_point(size = 3)
