@@ -59,12 +59,11 @@ ggsave("./outputs/over_time.png", width = 8, height = 5)
 incdat %>%
     mutate(cal12CH4ml = `HR 12CH4 Mean` * 2.00013, # ppm to ml and correct for dilution
            cal13CH4ml = `HR 13CH4 Mean` * 2.00013, # multiply by 2.00013
-           cal12CH4ml = ifelse(round != "T0", cal12CH4ml, cal12CH4ml * 1.07),
-           cal13CH4ml = ifelse(round != "T0", cal13CH4ml, cal13CH4ml * 1.07),
+           cal12CH4ml = ifelse(round != "T0", cal12CH4ml * 1.07, cal12CH4ml),
+           cal13CH4ml = ifelse(round != "T0", cal13CH4ml * 1.07, cal13CH4ml),
            # calculate atom percent (AP) of 13C methane in sample over time
-           AP_obs = cal13CH4ml / (cal12CH4ml + cal13CH4ml) * 100) ->
-    incdat
-
+           AP_obs = cal13CH4ml / (cal12CH4ml + cal13CH4ml) * 100) %>%
+    filter(id %in% c("52","4", "71")) -> incdat
 
 # ----- Constants -----
 
@@ -130,17 +129,17 @@ for(i in unique(incdat$id)) {
 
     # Estimate starting k by slope of 13C
     # This follows paragraph 21 in section 2.4
-    m <- lm((cal13CH4ml+cal12CH4ml) ~ time_days, data = dat)
+    m <- lm(log((cal13CH4ml+cal12CH4ml) * 1/FRAC_K) ~ time_days, data = dat)
     k0 <- unname(m$coefficients["time_days"])
     message("k0 = ", k0)
-
+    k0 <- min(k0, -0.001) #constraint k0 to values of 0 or less
     # Let optim() try different values for P and k until it finds best fit to data
     result <- optim(par = c("P" = 0.01, "k"= k0),
                     fn = cost_function,
                     # Do we want to constrain the optimizer so it can't produce <0 values for P and k?
                      method = "L-BFGS-B",
                      lower = c("P" = 0.0, "k"= -Inf),
-                     upper = c("P" = Inf, "k"= Inf),
+                     upper = c("P" = Inf, "k"= -0.001),
 
                     # "..." that the optimizer will pass to cost_function:
                     time = dat$time_days,
