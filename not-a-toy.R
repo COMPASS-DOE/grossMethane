@@ -63,7 +63,7 @@ incdat %>%
            cal13CH4ml = ifelse(round != "T0", cal13CH4ml * 1.07, cal13CH4ml),
            # calculate atom percent (AP) of 13C methane in sample over time
            AP_obs = cal13CH4ml / (cal12CH4ml + cal13CH4ml) * 100,
-           C = NA) %>%
+           C = NA_real_) %>%
     filter(id %in% c("52")) -> incdat
 #,"4", "71"
 
@@ -131,17 +131,19 @@ for(i in unique(incdat$id)) {
 
     # Estimate starting k by slope of 13C
     # This follows paragraph 21 in section 2.4
-    m <- lm(log((cal13CH4ml+cal12CH4ml) * 1/FRAC_K) ~ time_days, data = dat)
+    m <- lm(log((cal13CH4ml + cal12CH4ml) * 1 / FRAC_K) ~ time_days, data = dat)
     k0 <- unname(m$coefficients["time_days"])
     message("k0 = ", k0)
-    k0 <- min(k0, -0.001) #constraint k0 to values of 0 or less
+    k0 <- min(k0, -0.001) # constrains k0 to values of less than zero
+
     # Let optim() try different values for P and k until it finds best fit to data
     result <- optim(par = c("P" = 0.01, "k"= k0),
                     fn = cost_function,
-                    # Do we want to constrain the optimizer so it can't produce <0 values for P and k?
-                     method = "L-BFGS-B",
-                     lower = c("P" = 0.0, "k"= -Inf),
-                     upper = c("P" = Inf, "k"= -0.001),
+                    # Constrain the optimizer so it can't produce <0 values for P
+                    # nor values >=0 for k
+                    method = "L-BFGS-B",
+                    lower = c("P" = 0.0, "k"= -Inf),
+                    upper = c("P" = Inf, "k"= -0.001),
 
                     # "..." that the optimizer will pass to cost_function:
                     time = dat$time_days,
@@ -149,13 +151,14 @@ for(i in unique(incdat$id)) {
                     n0 = dat$cal13CH4ml[1],
                     AP_obs = dat$AP_obs)
 
-
     message("Optimizer solution:")
     print(result)
     P <- result$par["P"]
     pk_results[[i]] <- tibble(P = P,
                               k = result$par["k"],
-                              k0 = k0)
+                              k0 = k0,
+                              convergence = result$convergence,
+                              message = result$message)
 
     # Predict based on the optimized parameters
     sample_rows <- incdat$id == i
@@ -165,19 +168,19 @@ for(i in unique(incdat$id)) {
                       n0 = dat$cal13CH4ml[1],
                       P = P,
                       k = result$par["k"])
-    # Calculate implied consumption based on predictions
+
+    # Calculate implied consumption (ml/day) based on predictions
     # Ct = (P*time - ([CH4t] - [CH4t-1]))/time
-    total_methane <- incdat$cal12CH4ml[sample_rows] + incdat$cal13CH4ml[sample_rows]
+    total_methane <- dat$cal12CH4ml + dat$cal13CH4ml
     change_methane <- c(0, diff(total_methane))
-    change_time <- c(0, diff(incdat$time_days[sample_rows]))
-    incdat$C[sample_rows] <- (-change_methane + (P*change_time))/change_time
+    change_time <- c(0, diff(dat$time_days))
+    incdat$C[sample_rows] <- (-change_methane + (P * change_time)) / change_time
     #for 52, predicted P (for each time step) is too low
     #to account for change_methane at each time step
-    }
-
-
+}
 
 pk_results <- bind_rows(pk_results, .id = "id")
+
 
 # ----- Plot results -----
 
