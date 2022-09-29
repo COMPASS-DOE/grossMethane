@@ -62,8 +62,10 @@ incdat %>%
            cal12CH4ml = ifelse(round != "T0", cal12CH4ml * 1.07, cal12CH4ml),
            cal13CH4ml = ifelse(round != "T0", cal13CH4ml * 1.07, cal13CH4ml),
            # calculate atom percent (AP) of 13C methane in sample over time
-           AP_obs = cal13CH4ml / (cal12CH4ml + cal13CH4ml) * 100) %>%
-    filter(id %in% c("52","4", "71")) -> incdat
+           AP_obs = cal13CH4ml / (cal12CH4ml + cal13CH4ml) * 100,
+           C = NA) %>%
+    filter(id %in% c("52")) -> incdat
+#,"4", "71"
 
 # ----- Constants -----
 
@@ -150,18 +152,30 @@ for(i in unique(incdat$id)) {
 
     message("Optimizer solution:")
     print(result)
-    pk_results[[i]] <- tibble(P = result$par["P"],
+    P <- result$par["P"]
+    pk_results[[i]] <- tibble(P = P,
                               k = result$par["k"],
                               k0 = k0)
 
     # Predict based on the optimized parameters
-    incdat[incdat$id == i, "AP_pred"] <-
+    sample_rows <- incdat$id == i
+    incdat[sample_rows, "AP_pred"] <-
         ap_prediction(time = dat$time_days,
                       m0 = dat$cal12CH4ml[1] + dat$cal13CH4ml[1],
                       n0 = dat$cal13CH4ml[1],
-                      P = result$par["P"],
+                      P = P,
                       k = result$par["k"])
-}
+    # Calculate implied consumption based on predictions
+    # Ct = (P*time - ([CH4t] - [CH4t-1]))/time
+    total_methane <- incdat$cal12CH4ml[sample_rows] + incdat$cal13CH4ml[sample_rows]
+    change_methane <- c(0, diff(total_methane))
+    change_time <- c(0, diff(incdat$time_days[sample_rows]))
+    incdat$C[sample_rows] <- (-change_methane + (P*change_time))/change_time
+    #for 52, predicted P (for each time step) is too low
+    #to account for change_methane at each time step
+    }
+
+
 
 pk_results <- bind_rows(pk_results, .id = "id")
 
@@ -183,25 +197,25 @@ print(pk_results)
 message("All done.")
 
 #multiply k by overall average mls of methane
-pk_results$ml_k <- pk_results$k * 3
-pk_results$net <- pk_results$P + pk_results$ml_k
-
-pk_results %>%
-    filter(net > 0) -> issues
-unique(issues$id)
-lm_issues <- c("44", "52", "58", "59", "71", "72")
-ln_lm_issues <- c("18", "19", "3", "30", "31", "32", "41", "61", "71", "72", "86")
-
-
-pk_results %>%
-    filter(k > 0) -> same
-unique(same$id)
-
-lm_same <- c("44", "52", "58", "59", "71")
-ln_lm_same <- c("18", "3", "32", "41", "61", "71", "86")
-
-intersect(lm_issues, ln_lm_issues)
-intersect(lm_same, ln_lm_same)
-
-#write.csv(pk_results, "27092022_results.csv")
+# pk_results$ml_k <- pk_results$k * 3
+# pk_results$net <- pk_results$P + pk_results$ml_k
+#
+# pk_results %>%
+#     filter(net > 0) -> issues
+# unique(issues$id)
+# lm_issues <- c("44", "52", "58", "59", "71", "72")
+# ln_lm_issues <- c("18", "19", "3", "30", "31", "32", "41", "61", "71", "72", "86")
+#
+#
+# pk_results %>%
+#     filter(k > 0) -> same
+# unique(same$id)
+#
+# lm_same <- c("44", "52", "58", "59", "71")
+# ln_lm_same <- c("18", "3", "32", "41", "61", "71", "86")
+#
+# intersect(lm_issues, ln_lm_issues)
+# intersect(lm_same, ln_lm_same)
+#
+# #write.csv(pk_results, "27092022_results.csv")
 
