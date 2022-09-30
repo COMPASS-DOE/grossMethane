@@ -132,6 +132,7 @@ incdat_out <- list()
 
 for(i in unique(incdat$id)) {
     message("------------------- ", i)
+    # Isolate this sample's data
     incdat %>%
         filter(id == i) %>%
         select(id, round, vol, time_days, cal12CH4ml, cal13CH4ml, AP_obs) ->
