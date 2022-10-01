@@ -32,27 +32,16 @@ lapply(files, read_file) %>%
     mutate(time_days = difftime(Timestamp, min(Timestamp),
                                 units = "days"),
            time_days = as.numeric(time_days)) ->
-    incdat
+    incdat_raw
 
 # ----- QA/QC -----
 
 # Each of the samples has a vol=2, round=T4 observation with bizarre data
 # I assume we want to drop it?
-incdat <- filter(incdat, vol > 2)
+incdat <- filter(incdat_raw, vol > 2)
 # The id 10 sample's T5 observation has a bizarre `13CO2 Mean` number
 # (767, order of magnitude higher than any other in the column). Assume drop.
 #incdat <- filter(incdat, `HR 13CH4 Mean` < 700)
-
-incdat %>%
-    mutate(id_numeric = as.numeric(id)) %>%
-    pivot_longer(cols = c(`HR 12CH4 Mean`, `HR 13CH4 Mean`)) %>%
-    ggplot(aes(round, value, group = id, color = factor(id_numeric))) +
-    geom_point() + geom_line() +
-    ggtitle("POST DATA EXCLUSION") +
-    facet_wrap( ~ name, scales = "free") ->
-    p
-print(p)
-ggsave("./outputs/over_time.png", width = 8, height = 5)
 
 # ----- Unit conversion -----
 
@@ -64,9 +53,22 @@ incdat %>%
            cal12CH4ml = ifelse(round != "T0", cal12CH4ml * 1.07, cal12CH4ml),
            cal13CH4ml = ifelse(round != "T0", cal13CH4ml * 1.07, cal13CH4ml),
            # calculate atom percent (AP) of 13C methane in sample over time
-           AP_obs = cal13CH4ml / (cal12CH4ml + cal13CH4ml) * 100) %>%
-    filter(id %in% c("4", "71")) -> incdat
+           AP_obs = cal13CH4ml / (cal12CH4ml + cal13CH4ml) * 100) ->
+    incdat
+
+incdat <- filter(incdat, id %in% c("4"))
 #, "52", "4", "71"
+
+incdat %>%
+    mutate(id_numeric = as.factor(id)) %>%
+    pivot_longer(cols = c(cal12CH4ml, cal13CH4ml, AP_obs)) %>%
+    ggplot(aes(round, value, group = id, color = id)) +
+    geom_point() + geom_line() +
+    ggtitle("POST DATA EXCLUSION") +
+    facet_wrap( ~ name, scales = "free") ->
+    p
+print(p)
+ggsave("./outputs/over_time.png", width = 8, height = 5)
 
 # ----- Constants -----
 
@@ -107,27 +109,35 @@ ap_prediction <- function(time, m0, n0, P, k) {
 # Cost function called by optim()
 # params: named vector holding optimizer-assigned values for P and k
 # time: vector of time values, numeric (e.g. days); first should be zero
-# m0: amount of total methane at time zero
+# m: observed total methane values, same length as time
 # n0: amount of labeled methane at time zero
-# AP_obs: observed atom percent for 13C
-# Returns the sum of squares between predicted and observed AP
-cost_function <- function(params, time, m0, n0, AP_obs) {
+# AP_obs: time series of observed atom percent for 13C
+# Returns the sum of squares between predicted and observed m and AP
+cost_function <- function(params, time, m, n0, AP_obs) {
     #    message(params["P"], ",", params["k"])
     pred <- ap_prediction(time = time,
-                          m0 = m0,
+                          m0 = m[1],
                           n0 = n0,
                           P = params["P"],
                           k = params["k"])
 
-    # Return sum of squares to the optimizer
-    sum((pred$AP_pred - AP_obs) ^ 2)
+    # m and AP are on different scales, so we need to scale them
+    # in order to combine for a single sum of squares calculation
+    # First find overall ranges...
+    m_range <- range(c(pred$mt, m))
+    ap_range <- range(c(pred$AP_pred, AP_obs))
+    # ...and then rescale
+    library(scales)
+    mt_r <- rescale(pred$mt, from = m_range)
+    app_r <- rescale(pred$AP_pred, from = ap_range)
+    m_r <- rescale(m, from = m_range)
+    apo_r <- rescale(AP_obs, from = ap_range)
+    # Return overall sum of squares to the optimizer
+    sum((c(mt_r, app_r) - c(m_r, apo_r)) ^ 2)
 }
 
 
 # ----- Main -----
-
-# There are many ways to do this: dplyr's group_by/summarise,
-# base R's lapply, etc. Here we use a for loop.
 
 pk_results <- list()
 incdat_out <- list()
@@ -143,7 +153,7 @@ for(i in unique(incdat$id)) {
     # Estimate starting k by slope of 13C
     # This follows paragraph 21 in section 2.4
     # "We then calculate k as the slope of the linear regression of ln(n)
-    # versus time
+    # versus time...
     m <- lm(log(cal13CH4ml) ~ time_days, data = dat)
     m_slope <- unname(m$coefficients["time_days"])
     message("m_slope = ", m_slope)
@@ -169,7 +179,7 @@ for(i in unique(incdat$id)) {
 
                     # "..." that the optimizer will pass to cost_function:
                     time = dat$time_days,
-                    m0 = dat$cal12CH4ml[1] + dat$cal13CH4ml[1],
+                    m = dat$cal12CH4ml + dat$cal13CH4ml,
                     n0 = dat$cal13CH4ml[1],
                     AP_obs = dat$AP_obs)
 
@@ -224,6 +234,11 @@ print(ap_pred)
 ggsave("./outputs/ap_pred.png")
 
 print(pk_results)
+
+ggplot(incdat_out, aes(time_days)) +
+    geom_point(aes(y = cal12CH4ml + cal13CH4ml)) +
+    geom_line(aes(y = mt), linetype = 2) +
+    facet_wrap(~as.numeric(id), scales = "free")
 
 message("All done.")
 
