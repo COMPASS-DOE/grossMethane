@@ -56,7 +56,7 @@ incdat %>%
            AP_obs = cal13CH4ml / (cal12CH4ml + cal13CH4ml) * 100) ->
     incdat
 
-incdat <- filter(incdat, id %in% c("2", "71"))
+incdat <- filter(incdat, !id %in% c("52"))
 #, "52", "4", "71"
 
 incdat %>%
@@ -115,11 +115,11 @@ ap_prediction <- function(time, m0, n0, P, k) {
 # n0: amount of labeled methane at time zero
 # AP_obs: time series of observed atom percent for 13C
 # Returns the sum of squares between predicted and observed m and AP
-cost_function <- function(params, time, m, n0, AP_obs) {
+cost_function <- function(params, time, m, n, AP_obs) {
     #    message(params["P"], ",", params["k"])
     pred <- ap_prediction(time = time,
                           m0 = m[1],
-                          n0 = n0,
+                          n0 = n[1],
                           P = params["P"],
                           k = params["k"])
 
@@ -127,15 +127,15 @@ cost_function <- function(params, time, m, n0, AP_obs) {
     # in order to combine for a single sum of squares calculation
     # First find overall ranges...
     m_range <- range(c(pred$mt, m, na.rm = TRUE))
-    ap_range <- range(c(pred$AP_pred, AP_obs, na.rm = TRUE))
+    n_range <- range(c(pred$nt, n, na.rm = TRUE))
     # ...and then rescale
     library(scales)
     mt_r <- rescale(pred$mt, from = m_range)
-    app_r <- rescale(pred$AP_pred, from = ap_range)
+    nt_r <- rescale(pred$nt, from = n_range)
     m_r <- rescale(m, from = m_range)
-    apo_r <- rescale(AP_obs, from = ap_range)
+    n_r <- rescale(n, from = n_range)
     # Return overall sum of squares to the optimizer
-    sum((c(mt_r, app_r) - c(m_r, apo_r)) ^ 2)
+    sum((c(mt_r, nt_r) - c(m_r, n_r)) ^ 2)
 }
 
 
@@ -182,7 +182,7 @@ for(i in unique(incdat$id)) {
                     # "..." that the optimizer will pass to cost_function:
                     time = dat$time_days,
                     m = dat$cal12CH4ml + dat$cal13CH4ml,
-                    n0 = dat$cal13CH4ml[1],
+                    n = dat$cal13CH4ml,
                     AP_obs = dat$AP_obs)
 
     message("Optimizer solution:")
