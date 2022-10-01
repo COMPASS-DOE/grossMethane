@@ -226,6 +226,15 @@ for(i in unique(incdat$id)) {
 pk_results <- bind_rows(pk_results, .id = "id")
 incdat_out <- bind_rows(incdat_out)
 
+incdat_out %>%
+    bind_rows() %>%
+    # compute correlation between predictions and observations
+    group_by(id) %>%
+    summarise(m_cor = cor(cal12CH4ml + cal13CH4ml, mt),
+              ap_cor = cor(AP_obs, AP_pred)) %>%
+    right_join(incdat_out, by = "id") ->
+    incdat_out
+
 message("Done with optimization")
 
 
@@ -233,12 +242,8 @@ message("Done with optimization")
 
 ap_pred <- ggplot(incdat_out, aes(time_days)) +
     geom_point(aes(y = AP_obs)) +
-    geom_line(aes(y = AP_pred), linetype = 2) +
-    facet_wrap(~as.numeric(id), scales = "free") +
-    geom_text(data = pk_results, x = 0.6, y = 1.5,
-              aes(label = paste("P =", format(P, digits = 1, nsmall = 1)))) +
-    geom_text(data = pk_results, x = 0.6, y = 1.4,
-              aes(label = paste("k =", format(k, digits = 2, nsmall = 2))))
+    geom_line(aes(y = AP_pred, color = ap_cor), linetype = 2, size = 1) +
+    facet_wrap(~as.numeric(id), scales = "free")
 print(ap_pred)
 ggsave("./outputs/ap_pred.png", width = 8, height = 6)
 
@@ -247,17 +252,14 @@ ggsave("./outputs/ap_pred.png", width = 8, height = 6)
 
 m_pred <- ggplot(incdat_out, aes(time_days)) +
     geom_point(aes(y = cal12CH4ml + cal13CH4ml)) +
-    geom_line(aes(y = mt), linetype = 2) +
+    geom_line(aes(y = mt, color = m_cor), linetype = 2, size = 1) +
     facet_wrap(~as.numeric(id), scales = "free")
 print(m_pred)
 ggsave("./outputs/m_pred.png", width = 8, height = 6)
 
-# Visualize data coloring by fit
+
+# Visualize data, coloring by fit
 incdat_out %>%
-    group_by(id) %>%
-    summarise(m_cor = cor(cal12CH4ml+cal13CH4ml, mt),
-              ap_cor=cor(AP_obs, AP_pred)) %>%
-    right_join(incdat_out, by = "id") %>%
     pivot_longer(cols = c(cal12CH4ml, cal13CH4ml, AP_obs)) %>%
     ggplot(aes(round, value, group = id, color = ap_cor)) +
     geom_point() + geom_line() +
