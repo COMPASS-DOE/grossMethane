@@ -114,10 +114,9 @@ ap_prediction <- function(time, m0, n0, P, k) {
 # params: named vector holding optimizer-assigned values for P and k
 # time: vector of time values, numeric (e.g. days); first should be zero
 # m: observed total methane values, same length as time
-# n0: amount of labeled methane at time zero
-# AP_obs: time series of observed atom percent for 13C
+# n: observed labeled methane values, same length as time
 # Returns the sum of squares between predicted and observed m and AP
-cost_function <- function(params, time, m, n, AP_obs) {
+cost_function <- function(params, time, m, n) {
     #    message(params["P"], ",", params["k"])
     pred <- ap_prediction(time = time,
                           m0 = m[1],
@@ -125,7 +124,7 @@ cost_function <- function(params, time, m, n, AP_obs) {
                           P = params["P"],
                           k = params["k"])
 
-    # m and AP are on different scales, so we need to scale them
+    # m and n are on different scales, so we need to scale them
     # in order to combine for a single sum of squares calculation
     # First find overall ranges...
     m_range <- range(c(pred$mt, m, na.rm = TRUE))
@@ -179,7 +178,7 @@ for(i in unique(incdat$id)) {
     result <- optim(par = c("P" = 0.01, "k"= k0),
                     fn = cost_function,
                     # Constrain the optimizer so it can't produce <0 values
-                    # for P, nor values >=0 for k
+                    # for P, nor values <=0 for k
                     method = "L-BFGS-B",
                     lower = c("P" = 0.0, "k"= 0.0001),
                     upper = c("P" = Inf, "k"= Inf),
@@ -187,8 +186,7 @@ for(i in unique(incdat$id)) {
                     # "..." that the optimizer will pass to cost_function:
                     time = dat$time_days,
                     m = dat$cal12CH4ml + dat$cal13CH4ml,
-                    n = dat$cal13CH4ml,
-                    AP_obs = dat$AP_obs)
+                    n = dat$cal13CH4ml)
 
     message("Optimizer solution:")
     print(result)
