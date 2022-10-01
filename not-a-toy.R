@@ -56,7 +56,7 @@ incdat %>%
            AP_obs = cal13CH4ml / (cal12CH4ml + cal13CH4ml) * 100) ->
     incdat
 
-incdat <- filter(incdat, !id %in% c("52"))
+incdat <- filter(incdat, id %in% c("2", "71"))
 #, "52", "4", "71"
 
 incdat %>%
@@ -96,7 +96,9 @@ ap_prediction <- function(time, m0, n0, P, k) {
     # para 15: "there is no production of labeled methane during incubation"
 
     # Equation 9 (and numerator in Eq. 11):
-    nt <- n0 * exp(-k * FRAC_K * time)
+    kfrac <- k * FRAC_K
+    pfrac <- P * FRAC_P
+    nt <- pfrac/kfrac - (pfrac/kfrac - n0) * exp(-kfrac * time)
     # Equation 5 (and denominator in Eq. 11):
     mt <- P/k - (P/k - m0) * exp(-k * time)
 
@@ -126,7 +128,6 @@ cost_function <- function(params, time, m, n0, AP_obs) {
     # First find overall ranges...
     m_range <- range(c(pred$mt, m, na.rm = TRUE))
     ap_range <- range(c(pred$AP_pred, AP_obs, na.rm = TRUE))
-    message(pred$AP_pred)
     # ...and then rescale
     library(scales)
     mt_r <- rescale(pred$mt, from = m_range)
