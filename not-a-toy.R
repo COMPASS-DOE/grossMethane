@@ -62,10 +62,8 @@ incdat %>%
            cal12CH4ml = ifelse(round != "T0", cal12CH4ml * 1.07, cal12CH4ml),
            cal13CH4ml = ifelse(round != "T0", cal13CH4ml * 1.07, cal13CH4ml),
            # calculate atom percent (AP) of 13C methane in sample over time
-           AP_obs = cal13CH4ml / (cal12CH4ml + cal13CH4ml) * 100,
-           P = NA_real_,
-           C = NA_real_) %>%
-    filter(id %in% c("52")) -> incdat
+           AP_obs = cal13CH4ml / (cal12CH4ml + cal13CH4ml) * 100) %>%
+    filter(id %in% c("52","4", "71")) -> incdat
 #,"4", "71"
 
 # ----- Constants -----
@@ -94,7 +92,7 @@ ap_prediction <- function(time, m0, n0, P, k) {
     # Equation 9 (and numerator in Eq. 11):
     nt <- n0 * exp(-k * FRAC_K * time)
     # Equation 5 (and denominator in Eq. 11):
-    mt <- (P/k - (P/k - m0) * exp(-k * time))
+    mt <- P/k - (P/k - m0) * exp(-k * time)
 
     tibble(mt = mt,
            nt = nt,
@@ -140,10 +138,21 @@ for(i in unique(incdat$id)) {
 
     # Estimate starting k by slope of 13C
     # This follows paragraph 21 in section 2.4
-    m <- lm(log((cal13CH4ml + cal12CH4ml) * 1 / FRAC_K) ~ time_days, data = dat)
-    k0 <- unname(m$coefficients["time_days"])
+    # "We then calculate k as the slope of the linear regression of ln(n)
+    # versus time
+    m <- lm(log(cal13CH4ml) ~ time_days, data = dat)
+    m_slope <- unname(m$coefficients["time_days"])
+    message("m_slope = ", m_slope)
+    if(m_slope >= 0) {
+        stop("Slope of 13CH4 over time is positive; this should not happen")
+    }
+    # "...multiplied by 1/a to correct for fractionation against the
+    # labeled methane."
+    # BBL: this should be "1/-a" (see equation 8)
+    k0 = m_slope / -FRAC_K
     message("k0 = ", k0)
-    k0 <- min(k0, -0.001) # constrains k0 to values of less than zero
+    # From k, we calculate the gross methane consumption rate
+    # at atmospheric concentrations of methane (i.e., 1.8 mL/L) using equation (3).
 
     # Let optim() try different values for P and k until it finds best fit to data
     result <- optim(par = c("P" = 0.01, "k"= k0),
@@ -151,8 +160,8 @@ for(i in unique(incdat$id)) {
                     # Constrain the optimizer so it can't produce <0 values
                     # for P, nor values >=0 for k
                     method = "L-BFGS-B",
-                    lower = c("P" = 0.0, "k"= -Inf),
-                    upper = c("P" = Inf, "k"= -0.001),
+                    lower = c("P" = 0.0, "k"= 0.0001),
+                    upper = c("P" = Inf, "k"= Inf),
 
                     # "..." that the optimizer will pass to cost_function:
                     time = dat$time_days,
@@ -172,14 +181,16 @@ for(i in unique(incdat$id)) {
     # Predict based on the optimized parameters
     sample_rows <- incdat$id == i
     pred <- ap_prediction(time = dat$time_days,
-                      m0 = dat$cal12CH4ml[1] + dat$cal13CH4ml[1],
-                      n0 = dat$cal13CH4ml[1],
-                      P = P,
-                      k = result$par["k"])
+                          m0 = dat$cal12CH4ml[1] + dat$cal13CH4ml[1],
+                          n0 = dat$cal13CH4ml[1],
+                          P = P,
+                          k = result$par["k"])
     dat <- bind_cols(dat, pred)
 
     # Calculate implied consumption (ml/day) based on predictions
     # Ct = (P*time - ([CH4t] - [CH4t-1]))/time
+    # or expressed in the notation of Equation 4: dm/dt = P - C
+    # so C = P - dm/dt
     total_methane <- dat$cal12CH4ml + dat$cal13CH4ml
     change_methane <- c(0, diff(total_methane))
     change_time <- c(0, diff(dat$time_days))
