@@ -56,7 +56,7 @@ incdat %>%
            AP_obs = cal13CH4ml / (cal12CH4ml + cal13CH4ml) * 100) ->
     incdat
 
-incdat <- filter(incdat, id %in% c("2", "4", "52", "71"))
+#incdat <- filter(incdat, id %in% c("2", "4", "52", "71"))
 #, "52", "4", "71"
 
 incdat %>%
@@ -251,6 +251,21 @@ m_pred <- ggplot(incdat_out, aes(time_days)) +
     facet_wrap(~as.numeric(id), scales = "free")
 print(m_pred)
 ggsave("./outputs/m_pred.png", width = 8, height = 6)
+
+# Visualize data coloring by fit
+incdat_out %>%
+    group_by(id) %>%
+    summarise(m_cor = cor(cal12CH4ml+cal13CH4ml, mt),
+              ap_cor=cor(AP_obs, AP_pred)) %>%
+    right_join(incdat_out, by = "id") %>%
+    pivot_longer(cols = c(cal12CH4ml, cal13CH4ml, AP_obs)) %>%
+    ggplot(aes(round, value, group = id, color = ap_cor)) +
+    geom_point() + geom_line() +
+    facet_wrap( ~ name, scales = "free") ->
+    ap_fits
+print(ap_fits)
+ggsave("./outputs/ap_fits.png", width = 8, height = 6)
+
 
 print(pk_results)
 
