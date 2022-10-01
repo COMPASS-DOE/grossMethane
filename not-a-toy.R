@@ -56,7 +56,7 @@ incdat %>%
            AP_obs = cal13CH4ml / (cal12CH4ml + cal13CH4ml) * 100) ->
     incdat
 
-incdat <- filter(incdat, id %in% c("4"))
+incdat <- filter(incdat, !id %in% c("52"))
 #, "52", "4", "71"
 
 incdat %>%
@@ -124,8 +124,9 @@ cost_function <- function(params, time, m, n0, AP_obs) {
     # m and AP are on different scales, so we need to scale them
     # in order to combine for a single sum of squares calculation
     # First find overall ranges...
-    m_range <- range(c(pred$mt, m))
-    ap_range <- range(c(pred$AP_pred, AP_obs))
+    m_range <- range(c(pred$mt, m, na.rm = TRUE))
+    ap_range <- range(c(pred$AP_pred, AP_obs, na.rm = TRUE))
+    message(pred$AP_pred)
     # ...and then rescale
     library(scales)
     mt_r <- rescale(pred$mt, from = m_range)
@@ -220,7 +221,7 @@ pk_results <- bind_rows(pk_results, .id = "id")
 incdat_out <- bind_rows(incdat_out)
 
 
-# ----- Plot results -----
+# ----- Plot AP results -----
 
 ap_pred <- ggplot(incdat_out, aes(time_days)) +
     geom_point(aes(y = AP_obs)) +
@@ -231,14 +232,19 @@ ap_pred <- ggplot(incdat_out, aes(time_days)) +
     geom_text(data = pk_results, x = 0.6, y = 1.4,
               aes(label = paste("k =", format(k, digits = 2, nsmall = 2))))
 print(ap_pred)
-ggsave("./outputs/ap_pred.png")
+ggsave("./outputs/ap_pred.png", width = 8, height = 6)
 
-print(pk_results)
 
-ggplot(incdat_out, aes(time_days)) +
+# ----- Plot total methane results -----
+
+m_pred <- ggplot(incdat_out, aes(time_days)) +
     geom_point(aes(y = cal12CH4ml + cal13CH4ml)) +
     geom_line(aes(y = mt), linetype = 2) +
     facet_wrap(~as.numeric(id), scales = "free")
+print(m_pred)
+ggsave("./outputs/m_pred.png", width = 8, height = 6)
+
+print(pk_results)
 
 message("All done.")
 
