@@ -6,7 +6,7 @@ library(tidyr)
 library(readr)
 library(lubridate)
 theme_set(theme_bw())
-
+library(scales)
 
 # ----- Read in and clean up data -----
 
@@ -95,7 +95,7 @@ ap_prediction <- function(time, m0, n0, P, k) {
 
     # Equation 9 (and numerator in Eq. 11) is simplified in vFH2002, because as
     # the authors assume (in paragraph 15) that
-    # there is no production of labeled methane during incubation"
+    # "there is no production of labeled methane during incubation"
     # This may not be true, and thus the following equation for labeled methane
     # tracks Equation 5, i.e. it includes both production and consumption terms
     kfrac <- k * FRAC_K
@@ -130,7 +130,6 @@ cost_function <- function(params, time, m, n) {
     m_range <- range(c(pred$mt, m, na.rm = TRUE))
     n_range <- range(c(pred$nt, n, na.rm = TRUE))
     # ...and then rescale
-    library(scales)
     mt_r <- rescale(pred$mt, from = m_range)
     nt_r <- rescale(pred$nt, from = n_range)
     m_r <- rescale(m, from = m_range)
@@ -153,8 +152,7 @@ for(i in unique(incdat$id)) {
         select(id, round, vol, time_days, cal12CH4ml, cal13CH4ml, AP_obs) ->
         dat
 
-    # Estimate starting k by slope of 13C
-    # This follows paragraph 21 in section 2.4
+    # Estimate starting k by slope of 13C.  This follows para. 21:
     # "We then calculate k as the slope of the linear regression of ln(n)
     # versus time...
     m <- lm(log(cal13CH4ml) ~ time_days, data = dat)
@@ -171,8 +169,6 @@ for(i in unique(incdat$id)) {
     # BBL: this should be "1/-a" (see equation 8)
     k0 = m_slope / -FRAC_K
     message("k0 = ", k0)
-    # From k, we calculate the gross methane consumption rate
-    # at atmospheric concentrations of methane (i.e., 1.8 mL/L) using equation (3).
 
     # Let optim() try different values for P and k until it finds best fit to data
     result <- optim(par = c("P" = 0.01, "k"= k0),
@@ -198,7 +194,6 @@ for(i in unique(incdat$id)) {
                               message = result$message)
 
     # Predict based on the optimized parameters
-    sample_rows <- incdat$id == i
     pred <- ap_prediction(time = dat$time_days,
                           m0 = dat$cal12CH4ml[1] + dat$cal13CH4ml[1],
                           n0 = dat$cal13CH4ml[1],
@@ -210,13 +205,12 @@ for(i in unique(incdat$id)) {
     # Ct = (P*time - ([CH4t] - [CH4t-1]))/time
     # or expressed in the notation of Equation 4: dm/dt = P - C
     # so C = P - dm/dt
+    # (could also just use equation 2, but this is a good check on things)
     total_methane <- dat$cal12CH4ml + dat$cal13CH4ml
     change_methane <- c(0, diff(total_methane))
     change_time <- c(0, diff(dat$time_days))
     dat$Pt <- P * change_time
     dat$Ct <- (-change_methane + (P * change_time)) / change_time
-    #for 52, predicted P (for each time step) is too low
-    #to account for change_methane at each time step
 
     incdat_out[[i]] <- dat
 }
@@ -245,7 +239,6 @@ ap_pred <- ggplot(incdat_out, aes(time_days)) +
 print(ap_pred)
 ggsave("./outputs/ap_pred.png", width = 8, height = 6)
 
-
 # ----- Plot total methane results -----
 
 m_pred <- ggplot(incdat_out, aes(time_days)) +
@@ -255,8 +248,8 @@ m_pred <- ggplot(incdat_out, aes(time_days)) +
 print(m_pred)
 ggsave("./outputs/m_pred.png", width = 8, height = 6)
 
+# ----- Visualize data, coloring by fit -----
 
-# Visualize data, coloring by fit
 incdat_out %>%
     pivot_longer(cols = c(cal12CH4ml, cal13CH4ml, AP_obs)) %>%
     ggplot(aes(round, value, group = id, color = ap_cor)) +
@@ -265,7 +258,6 @@ incdat_out %>%
     ap_fits
 print(ap_fits)
 ggsave("./outputs/ap_fits.png", width = 8, height = 6)
-
 
 print(pk_results)
 
