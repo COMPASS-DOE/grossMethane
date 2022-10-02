@@ -1,12 +1,14 @@
-library(tibble)
+library(dplyr)
 library(ggplot2)
 library(ggpmisc)
-library(dplyr)
-library(tidyr)
-library(readr)
 library(lubridate)
-theme_set(theme_bw())
+library(readr)
 library(scales)
+library(tibble)
+library(tidyr)
+
+theme_set(theme_bw())
+
 
 # ----- Read in and clean up data -----
 
@@ -36,6 +38,8 @@ lapply(files, read_file) %>%
 
 # ----- QA/QC -----
 
+
+##KM: I think all of this can be removed now?
 # Each of the samples has a vol=2, round=T4 observation with bizarre data
 # I assume we want to drop it?
 incdat <- filter(incdat_raw, vol > 2)
@@ -48,10 +52,15 @@ incdat <- filter(incdat_raw, vol > 2)
 incdat %>%
     # BBL: to convert ppm to ml, don't we need to multiply by VOL_ML below?
     # and divide by 1e6? E.g. if we had 1e6 ppm, that's 100% or VOL_ML of CH4
-    mutate(cal12CH4ml = `HR 12CH4 Mean` * 2.00013, # ppm to ml and correct for dilution
-           cal13CH4ml = `HR 13CH4 Mean` * 2.00013, # multiply by 2.00013
-           cal12CH4ml = ifelse(round != "T0", cal12CH4ml * 1.07, cal12CH4ml),
-           cal13CH4ml = ifelse(round != "T0", cal13CH4ml * 1.07, cal13CH4ml),
+    # volume of jar = 130 ml or 0.130 l, 1 ppm = 0.001 ml/l, sample is diluted 1:1
+    # picarro takes 20 ml, 10 ml injected (see vol)
+    # therefore ppm to ml = ppm * 0.001 * 0.130 * 2 = 0.00026
+    mutate(cal12CH4ml = `HR 12CH4 Mean` * 0.00026,
+           cal13CH4ml = `HR 13CH4 Mean` * 0.00026,
+           #for each 10 ml sample. 10 ml of zero air injected
+           #remaining gas is jar is diluted 12:1
+           cal12CH4ml = ifelse(round != "T0", cal12CH4ml * 1.08, cal12CH4ml),
+           cal13CH4ml = ifelse(round != "T0", cal13CH4ml * 1.08, cal13CH4ml),
            # calculate atom percent (AP) of 13C methane in sample over time
            AP_obs = cal13CH4ml / (cal12CH4ml + cal13CH4ml) * 100) ->
     incdat
@@ -75,7 +84,7 @@ ggsave("./outputs/over_time.png", width = 8, height = 5)
 FRAC_K <- 0.98 # 13C consumption as a fraction of 12C consumption (alpha in Eq. 11)
 FRAC_P <- 0.01 # 13C production as a fraction of 12C production
 AP_P <- FRAC_P / (1 + FRAC_P) * 100 # 13C atom percent of total methane production
-VOL_ML <- 100   # Note that currently this isn't used anywhere below
+VOL_ML <- 130   # Note that currently this isn't used anywhere below
 
 # ----- Model-fitting functions -----
 
@@ -155,7 +164,7 @@ for(i in unique(incdat$id)) {
     # Estimate starting k by slope of 13C.  This follows para. 21:
     # "We then calculate k as the slope of the linear regression of ln(n)
     # versus time...
-    m <- lm(log(cal13CH4ml) ~ time_days, data = dat)
+    m <- lm(log(cal13CH4ml + 1/FRAC_K) ~ time_days, data = dat)
     m_slope <- unname(m$coefficients["time_days"])
     message("m_slope = ", m_slope)
     # Generally, this slope is negative (net 13CH4 consumption)
@@ -262,27 +271,4 @@ ggsave("./outputs/ap_fits.png", width = 8, height = 6)
 print(pk_results)
 
 message("All done.")
-
-#multiply k by overall average mls of methane
-# pk_results$ml_k <- pk_results$k * 3
-# pk_results$net <- pk_results$P + pk_results$ml_k
-#
-# pk_results %>%
-#     filter(net > 0) -> issues
-# unique(issues$id)
-# lm_issues <- c("44", "52", "58", "59", "71", "72")
-# ln_lm_issues <- c("18", "19", "3", "30", "31", "32", "41", "61", "71", "72", "86")
-#
-#
-# pk_results %>%
-#     filter(k > 0) -> same
-# unique(same$id)
-#
-# lm_same <- c("44", "52", "58", "59", "71")
-# ln_lm_same <- c("18", "3", "32", "41", "61", "71", "86")
-#
-# intersect(lm_issues, ln_lm_issues)
-# intersect(lm_same, ln_lm_same)
-#
-# #write.csv(pk_results, "27092022_results.csv")
 
