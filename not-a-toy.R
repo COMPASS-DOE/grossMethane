@@ -50,16 +50,16 @@ VOL_ML <- 130  # headspace volume of jar
 
 # ----- Unit conversion -----
 
-incdat %>%
+incdat_raw %>%
     # Volume of jar = 130 ml or 0.130 l, 1 ppm = 0.001 ml/l, sample is diluted 1:1
-    # The Ppicarro takes 20 ml, 10 ml injected (see vol);
+    # The Picarro takes 20 ml, 10 ml injected (see vol);
     # therefore ppm to ml = ppm * 0.001 * VOL_ML/1000 * 2
     mutate(cal12CH4ml = `HR 12CH4 Mean` * 0.001 * VOL_ML/1000 * 2,
            cal13CH4ml = `HR 13CH4 Mean` * 0.001 * VOL_ML/1000 * 2,
            # for each 10 ml sample. 10 ml of zero air injected
            # remaining gas is jar is diluted 12:1
-           cal12CH4ml = ifelse(round != "T0", cal12CH4ml * 1.083, cal12CH4ml),
-           cal13CH4ml = ifelse(round != "T0", cal13CH4ml * 1.083, cal13CH4ml),
+           cal12CH4ml = if_else(round != "T0", cal12CH4ml * 1.083, cal12CH4ml),
+           cal13CH4ml = if_else(round != "T0", cal13CH4ml * 1.083, cal13CH4ml),
            # calculate atom percent (AP) of 13C methane in sample over time
            AP_obs = cal13CH4ml / (cal12CH4ml + cal13CH4ml) * 100) ->
     incdat
@@ -159,7 +159,7 @@ for(i in unique(incdat$id)) {
     # Estimate starting k by slope of 13C.  This follows para. 21:
     # "We then calculate k as the slope of the linear regression of ln(n)
     # versus time...
-    m <- lm(log(cal13CH4ml + 1/FRAC_K) ~ time_days, data = dat)
+    m <- lm(log(cal13CH4ml) ~ time_days, data = dat)
     m_slope <- unname(m$coefficients["time_days"])
     message("m_slope = ", m_slope)
     # Generally, this slope is negative (net 13CH4 consumption)
