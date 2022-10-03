@@ -54,8 +54,8 @@ incdat_raw %>%
     # Volume of jar = 130 ml or 0.130 l, 1 ppm = 0.001 ml/l, sample is diluted 1:1
     # The Picarro takes 20 ml, 10 ml injected (see vol);
     # therefore ppm to ml = ppm * 0.001 * VOL_ML/1000 * 2
-    mutate(cal12CH4ml = `HR 12CH4 Mean` * 0.001 * VOL_ML/1000 * 2,
-           cal13CH4ml = `HR 13CH4 Mean` * 0.001 * VOL_ML/1000 * 2,
+    mutate(cal12CH4ml = `HR 12CH4 Mean` * 0.001 * VOL_ML/1000 * 2 * 1000,
+           cal13CH4ml = `HR 13CH4 Mean` * 0.001 * VOL_ML/1000 * 2 * 1000,
            # for each 10 ml sample. 10 ml of zero air injected
            # remaining gas is jar is diluted 12:1
            cal12CH4ml = if_else(round != "T0", cal12CH4ml * 1.083, cal12CH4ml),
@@ -175,7 +175,7 @@ for(i in unique(incdat$id)) {
     message("k0 = ", k0)
 
     # Let optim() try different values for P and k until it finds best fit to data
-    result <- optim(par = c("P" = 0.01, "k"= k0),
+    result <- optim(par = c("P" = 10, "k"= k0),
                     fn = cost_function,
                     # Constrain the optimizer so it can't produce <0 values
                     # for P, nor values <=0 for k
@@ -223,11 +223,16 @@ pk_results <- bind_rows(pk_results, .id = "id")
 incdat_out <- bind_rows(incdat_out)
 
 incdat_out %>%
-    bind_rows() %>%
     # compute correlation between predictions and observations
     group_by(id) %>%
     summarise(m_cor = cor(cal12CH4ml + cal13CH4ml, mt),
-              ap_cor = cor(AP_obs, AP_pred)) %>%
+              ap_cor = cor(AP_obs, AP_pred)) ->
+    performance_summary
+
+performance_summary %>%
+    right_join(pk_results, by = "id") ->
+    pk_results
+performance_summary %>%
     right_join(incdat_out, by = "id") ->
     incdat_out
 
