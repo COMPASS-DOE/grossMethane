@@ -1,3 +1,7 @@
+# Analysis code for the SERC/UMD 13CH4-labeling incubation
+# Kendalynn Morris
+# October 2022
+
 library(dplyr)
 library(ggplot2)
 library(ggpmisc)
@@ -36,37 +40,34 @@ lapply(files, read_file) %>%
            time_days = as.numeric(time_days)) ->
     incdat_raw
 
-# ----- QA/QC -----
 
+# ----- Constants -----
 
-##KM: I think all of this can be removed now?
-# Each of the samples has a vol=2, round=T4 observation with bizarre data
-# I assume we want to drop it?
-incdat <- filter(incdat_raw, vol > 2)
-# The id 10 sample's T5 observation has a bizarre `13CO2 Mean` number
-# (767, order of magnitude higher than any other in the column). Assume drop.
-#incdat <- filter(incdat, `HR 13CH4 Mean` < 700)
+FRAC_K <- 0.98 # 13C consumption as a fraction of 12C consumption (alpha in Eq. 11)
+FRAC_P <- 0.01 # 13C production as a fraction of 12C production
+AP_P <- FRAC_P / (1 + FRAC_P) * 100 # 13C atom percent of total methane production
+VOL_ML <- 130  # headspace volume of jar
 
 # ----- Unit conversion -----
 
 incdat %>%
-    # BBL: to convert ppm to ml, don't we need to multiply by VOL_ML below?
-    # and divide by 1e6? E.g. if we had 1e6 ppm, that's 100% or VOL_ML of CH4
-    # volume of jar = 130 ml or 0.130 l, 1 ppm = 0.001 ml/l, sample is diluted 1:1
-    # picarro takes 20 ml, 10 ml injected (see vol)
-    # therefore ppm to ml = ppm * 0.001 * 0.130 * 2 = 0.00026
-    mutate(cal12CH4ml = `HR 12CH4 Mean` * 0.00026,
-           cal13CH4ml = `HR 13CH4 Mean` * 0.00026,
-           #for each 10 ml sample. 10 ml of zero air injected
-           #remaining gas is jar is diluted 12:1
-           cal12CH4ml = ifelse(round != "T0", cal12CH4ml * 1.08, cal12CH4ml),
-           cal13CH4ml = ifelse(round != "T0", cal13CH4ml * 1.08, cal13CH4ml),
+    # Volume of jar = 130 ml or 0.130 l, 1 ppm = 0.001 ml/l, sample is diluted 1:1
+    # The Ppicarro takes 20 ml, 10 ml injected (see vol);
+    # therefore ppm to ml = ppm * 0.001 * VOL_ML/1000 * 2
+    mutate(cal12CH4ml = `HR 12CH4 Mean` * 0.001 * VOL_ML/1000 * 2,
+           cal13CH4ml = `HR 13CH4 Mean` * 0.001 * VOL_ML/1000 * 2,
+           # for each 10 ml sample. 10 ml of zero air injected
+           # remaining gas is jar is diluted 12:1
+           cal12CH4ml = ifelse(round != "T0", cal12CH4ml * 1.083, cal12CH4ml),
+           cal13CH4ml = ifelse(round != "T0", cal13CH4ml * 1.083, cal13CH4ml),
            # calculate atom percent (AP) of 13C methane in sample over time
            AP_obs = cal13CH4ml / (cal12CH4ml + cal13CH4ml) * 100) ->
     incdat
 
 #incdat <- filter(incdat, id %in% c("2", "4", "52", "71"))
 #, "52", "4", "71"
+
+# ----- Data visualization -----
 
 incdat %>%
     mutate(id_numeric = as.factor(id)) %>%
@@ -79,12 +80,6 @@ incdat %>%
 print(p)
 ggsave("./outputs/over_time.png", width = 8, height = 5)
 
-# ----- Constants -----
-
-FRAC_K <- 0.98 # 13C consumption as a fraction of 12C consumption (alpha in Eq. 11)
-FRAC_P <- 0.01 # 13C production as a fraction of 12C production
-AP_P <- FRAC_P / (1 + FRAC_P) * 100 # 13C atom percent of total methane production
-VOL_ML <- 130   # Note that currently this isn't used anywhere below
 
 # ----- Model-fitting functions -----
 
@@ -271,4 +266,3 @@ ggsave("./outputs/ap_fits.png", width = 8, height = 6)
 print(pk_results)
 
 message("All done.")
-
