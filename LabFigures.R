@@ -42,7 +42,7 @@ incdat %>%
            -X, -Timestamp, -Timestamp_adj, -id) %>%
     left_join(deltas2add, by = c("Collar" = "Collar",
                                  "round" = "round")) %>%
-    pivot_wider(id_cols = Collar, names_from = round,
+  pivot_wider(id_cols = Collar, names_from = round,
                 values_from = c(HR.12CH4.Mean,
                                 HR.13CH4.Mean,
                                 HR.Delta.iCH4.Mean,
@@ -158,8 +158,9 @@ ggplot(data = allData, #[allData$Collar != 52,],
 #drop redundant rows from long form data
 allData %>%
     select(Location, Origin, Collar,
-           umolKg, umolPg, sm, FCH4,
-           net, k0) %>%
+           umolKg, umolPg, sm,
+           mass, FCH4, dCH4_f,
+           dCH4_i, net, k0) %>%
     unique() -> graph
 
 #summary of net incubation
@@ -171,7 +172,7 @@ ggplot(graph[graph$Collar != 52,],
     geom_boxplot()
 
 #summary of production
-ggplot(graph,#[graph$Collar != 52,],
+ggplot(graph,
        aes(Location, umolPg, fill = Origin)) +
     scale_x_discrete(labels = c("lowland",
                                 "upslope")) +
@@ -179,9 +180,19 @@ ggplot(graph,#[graph$Collar != 52,],
     geom_boxplot()
 
 #summary of net rates
-ggplot(graph,#[graph$Collar != 52,],
+ggplot(graph,
        aes(Location, umolPg+umolKg, fill = Origin)) +
     scale_x_discrete(labels = c("lowland",
                                 "upslope")) +
     scale_fill_discrete(labels = Olabs) +
     geom_boxplot()
+
+
+#summary of terminal delta values
+ggplot(graph,
+       aes(Collar, dCH4_f,  color = Origin)) +
+    facet_wrap(. ~ Location, scales = "free",
+               labeller = as_labeller(labellies)) +
+    scale_color_discrete(labels = Olabs) +
+    geom_point(aes(size = sm)) + theme_bw()
+
