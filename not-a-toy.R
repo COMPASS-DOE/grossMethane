@@ -27,11 +27,17 @@ read_file <- function(f) {
 # Read in and pre-process data
 lapply(files, read_file) %>%
     bind_rows() %>%
-    # filter out test data (???) and clean up columns
+    # filter out standards and clean up columns
     filter(! id %in% c("SERC100ppm", "UMDzero", "SERCzero", "desert5000")) %>%
     mutate(Timestamp = mdy_hm(`Date/Time`, tz = "UTC")) %>%
     select(Timestamp, id, round, vol,
-           `HR 12CH4 Mean`, `HR 13CH4 Mean`, notes) %>%
+           `HR 12CH4 Mean`, `HR 12CH4 Std`,
+           `HR 13CH4 Mean`, `HR 13CH4 Std`,
+           `HR Delta iCH4 Mean`, `HR Delta iCH4 Std`,
+           `12CO2 Mean`, `12CO2 Std`,
+           `13CO2 Mean`, `13CO2 Std`,
+           `Delta 13CO2 Mean`, `Delta 13CO2 Std`,
+           notes) %>%
     # calculate elapsed time for each sample
     arrange(id, round) %>%
     group_by(id) %>%
@@ -52,7 +58,7 @@ VOL_ML <- 130  # headspace volume of jar
 
 incdat_raw %>%
     # Volume of jar = 130 ml or 0.130 l, 1 ppm = 0.001 ml/l, sample is diluted 1:1
-    # The Picarro takes 20 ml, 10 ml injected (see vol);
+    # The Picarro takes 20 ml, but 10 ml injected (see vol);
     # therefore ppm to ml = ppm * 0.001 * VOL_ML/1000 * 2
     mutate(cal12CH4ml = `HR 12CH4 Mean` * 0.001 * VOL_ML/1000 * 2 * 1000,
            cal13CH4ml = `HR 13CH4 Mean` * 0.001 * VOL_ML/1000 * 2 * 1000,

@@ -15,11 +15,11 @@ library(ggplot2)
 library(ggpmisc)
 library(car)
 
-Olabs <- c("lowland", "midslope", "upslope", "midstream", "upstream")
-Llabs <- c("lowland", "midslope", "upslope")
+Olabs <- c("lowland", "midslope", "upland", "midstream", "upstream")
+Llabs <- c("lowland", "midslope", "upland")
 labellies <- c('g_low' = "lowland",
                'g_mid' = "midslope",
-               'g_up' = "upslope",
+               'g_up' = "upland",
                'midstream' = "midstream",
                'upstream' = "upstream")
 

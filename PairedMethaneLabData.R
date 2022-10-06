@@ -11,11 +11,6 @@ library(ggplot2)
 library(ggpmisc)
 library(car)
 
-#read gross rate results generated on September 23th
-#from commit "correct for zero air dilution"
-pk_results <- read.csv("23092022_pk_results.csv")
-pk_results %>% select(-X) -> pk_results
-
 Olabs <- c("lowland", "midslope", "upslope", "midstream", "upstream")
 Llabs <- c("lowland", "midslope", "upslope")
 
@@ -31,24 +26,64 @@ read_file <- function(f) {
 # Read in and pre-process data
 lapply(files, read_file) %>%
     bind_rows() %>%
+    # filter out standards and clean up columns
     filter(! id %in% c("SERC100ppm", "UMDzero", "SERCzero", "desert5000")) %>%
-    mutate(Timestamp = mdy_hm(`Date/Time`, tz = "UTC")) %>%
-    select(Timestamp, id, round, `HR Delta iCH4 Mean`,
-    `HR Delta iCH4 Std`, `Delta 13CO2 Mean`, `Delta 13CO2 Std`,
-    `HR 12CH4 Mean`, `HR 13CH4 Mean`) -> deltas
+    mutate(Timestamp = mdy_hm(`Date/Time`, tz = "UTC"),
+           `HR 12CH4 Mean` = if_else(round != "T0", `HR 12CH4 Mean` * 1.083, `HR 12CH4 Mean`),
+           `HR 13CH4 Mean` = if_else(round != "T0", `HR 13CH4 Mean` * 1.083, `HR 13CH4 Mean`)) %>%
+    select(Timestamp, id, round, vol,
+           `HR 12CH4 Mean`, `HR 12CH4 Std`,
+           `HR 13CH4 Mean`, `HR 13CH4 Std`,
+           `HR Delta iCH4 Mean`, `HR Delta iCH4 Std`,
+           `12CO2 Mean`, `12CO2 Std`,
+           `13CO2 Mean`, `13CO2 Std`,
+           `Delta 13CO2 Mean`, `Delta 13CO2 Std`,
+           notes) %>%
+    # calculate elapsed time for each sample
+    arrange(id, round) %>%
+    group_by(id) %>%
+    mutate(time_days = difftime(Timestamp, min(Timestamp),
+                                units = "days"),
+           time_days = as.numeric(time_days)) -> deltas
 
 #write.csv(deltas, "incDeltas.csv")
 
 #read in soil moisture data
 soil <- read.csv("field-measurements/July22_soilmoisture.csv")
-g_dat <- merge(soil, pk_results, by = "id")
+g_dat <- merge(soil, deltas, by = "id")
 #calculate soil dry mass and fresh water mass
 g_dat$mass <- g_dat$jdry - g_dat$jempty
 g_dat$sm <- (g_dat$jfresh - g_dat$jdry)/g_dat$mass
+
+incdat_out %>%
+    mutate(Collar = as.character(id)) %>%
+    select(-vol, -id) -> incdat_join
+
+g_dat %>%
+    mutate(Mppm = `HR 12CH4 Mean` * 2,
+           Mstd = `HR 12CH4 Std` * 2,
+           M13ppm = `HR 13CH4 Mean` * 2,
+           M13std = `HR 13CH4 Std` * 2,
+           Cppm = `12CO2 Mean` * 2,
+           Cstd = `12CO2 Std` * 2,
+           C13ppm = `13CO2 Mean` * 2,
+           C13std = `13CO2 Mean` * 2,
+           Collar = as.character(id)) %>%
+    select(-id, -jempty, -jfresh, -jdry, -vol,
+           -`HR 12CH4 Mean`, -`HR 12CH4 Std`,
+           -`HR 13CH4 Mean`, -`HR 13CH4 Std`,
+           -`12CO2 Mean`, -`12CO2 Std`,
+           -`13CO2 Mean`, -`13CO2 Std`,
+           -notes, -Timestamp, -time_days) %>%
+        left_join(incdat_join, by = c("Collar", "round")) %>%
+    select(order(colnames(.))) %>%
+    select(Collar, round, order, Location, Origin,
+           mass, sm, everything()) -> data
+
 #calculate umol of gas per g dry soil per day for Production
-g_dat$umolPg <- (g_dat$P * 44.64)/g_dat$mass
+data$umolPg <- (data$Pt * 0.0446)/g_dat$mass
 #calculate umol of gas per g dry soil per day for Consumption
-g_dat$umolKg <- (g_dat$k * 44.64)/g_dat$mass
+data$umolCg <- (data$Ct * 0.0446)/data$mass
 
 #are data normally distributed?
 par(mfrow = c(2, 3))
@@ -58,7 +93,7 @@ for (x in 10:14) {
     hist(i,
          main = paste(var))
 }
-#fluxes should be log transformed
+#fluxes should be transformed
 dev.off()
 
 hist(log10(g_dat$umolPg + 50))
@@ -78,7 +113,7 @@ g_dat %>%
   relocate(c(jempty, jfresh, jdry), .after = rtK) %>%
   left_join(f_dat4g_dat, by = "Collar") -> data
 
-write.csv(data, "PairedData.csv")
+#write.csv(data, "PairedData.csv")
 
 consumption <- aov(rtK ~ Location + sm,
                data = data)
