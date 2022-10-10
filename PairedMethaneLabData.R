@@ -6,11 +6,15 @@
 # September 2022
 # Kendalynn A. Morris
 
+# will not run without products of not-a-toy
+
+library(car)
 library(dplyr)
 library(ggplot2)
 library(ggpmisc)
-library(car)
+library(lubridate)
 library(rcompanion)
+library(readr)
 
 Olabs <- c("lowland", "midslope", "upland", "midstream", "upstream")
 Llabs <- c("lowland", "midslope", "upland")
@@ -72,15 +76,14 @@ labDat %>%
            delC = `Delta 13CO2 Mean`,
            delCstd = `Delta 13CO2 Std`,
            delM = `HR Delta iCH4 Mean`,
-           delMset = `HR Delta iCH4 Std`) %>%
+           delMstd = `HR Delta iCH4 Std`) %>%
     select(-jempty, -jfresh, -jdry, -vol,
            -`HR 12CH4 Mean`, -`HR 12CH4 Std`,
            -`HR 13CH4 Mean`, -`HR 13CH4 Std`,
            -`12CO2 Mean`, -`12CO2 Std`,
            -`13CO2 Mean`, -`13CO2 Std`,
            -`Delta 13CO2 Mean`, -`Delta 13CO2 Std`,
-           -`HR Delta iCH4 Mean`, -`HR Delta iCH4 Std`,
-           -Timestamp) %>%
+           -`HR Delta iCH4 Mean`, -`HR Delta iCH4 Std`) %>%
         left_join(incdat_join, by = c("id", "round")) %>%
     select(order(colnames(.))) %>%
     select(id, round, order, Location, Origin,
@@ -97,16 +100,19 @@ fDat <- read_csv("field-measurements/licorRTA.csv",
                  col_types = "cdcccccddddd")
 fDat %>%
     filter(date %in% c("7/27/2022", "7/29/2022")) %>%
-    mutate(id = Collar) %>%
-    select(-Collar, -date, -Origin, -Location) -> incDays
+    mutate(id = Collar,
+           f_time = timestamp) %>%
+    select(-Collar, -date, -Origin, -Location, -timestamp) -> incDays
 
 #data Ready-To-Analyze
 data %>%
+    mutate(l_time = Timestamp) %>%
+    select(-Timestamp) %>%
     left_join(incDays, by = "id") -> dataRTA
 
-#write.csv(data, "PairedData.csv")
+#write.csv(dataRTA, "PairedData.csv")
 
-#prelimnary analysis
+#preliminary analysis
 
 #are data normally distributed?
 par(mfrow = c(4,4))

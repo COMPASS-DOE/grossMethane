@@ -3,17 +3,18 @@
 # 13C tracer incubations were conducted the last week of July 22
 # in wetland edge (aka lowland aka transition) and upland soils
 
-# September 2022
+# October 2022
 # Kendalynn A. Morris
 
-#read gross rate results generated on September 13th
-#from commit "venture into toyland"
+Sys.setenv(TZ = "America/New_York")
 
+library(car)
 library(dplyr)
-library(tidyr)
+library(emojifont)
+library(lubridate)
 library(ggplot2)
 library(ggpmisc)
-library(car)
+library(tidyr)
 
 Olabs <- c("lowland", "midslope", "upland", "midstream", "upstream")
 Llabs <- c("lowland", "midslope", "upland")
@@ -23,176 +24,218 @@ labellies <- c('g_low' = "lowland",
                'midstream' = "midstream",
                'upstream' = "upstream")
 
-deltas <- read.csv("incDeltas.csv")
-incdat <- read.csv("2022IncDat.csv")
-paired <- read.csv("PairedData.csv")
+data <- read_csv("PairedData.csv",
+                 col_types = "dcccccdddddddddddddddddddddddddddcccdddddc")
 
-deltas$Collar <- as.character(deltas$id)
-incdat$Collar <- as.character(incdat$id)
-paired$Collar <- as.character(paired$Collar)
-
-deltas %>%
-    select(-X, -id, -Timestamp,
-           -HR.12CH4.Mean,
-           -HR.13CH4.Mean,) -> deltas2add
 
 #calculate methane totals and net changes
-incdat %>%
-    select(-AP_pred5, -AP_pred, -notes, -vol,
-           -X, -Timestamp, -Timestamp_adj, -id) %>%
-    left_join(deltas2add, by = c("Collar" = "Collar",
-                                 "round" = "round")) %>%
-  pivot_wider(id_cols = Collar, names_from = round,
-                values_from = c(HR.12CH4.Mean,
-                                HR.13CH4.Mean,
-                                HR.Delta.iCH4.Mean,
-                                Delta.13CO2.Mean,
-                                cal12CH4ml,
-                                cal13CH4ml,
-                                AP_obs)) %>%
-    mutate(net = (cal12CH4ml_T4 + cal13CH4ml_T4) - (cal12CH4ml_T0 + cal13CH4ml_T0),
-           intial = (cal12CH4ml_T0 + cal13CH4ml_T0),
-           final = (cal12CH4ml_T4 + cal13CH4ml_T4),
-           dCH4_i = HR.Delta.iCH4.Mean_T0,
-           dCH4_f = HR.Delta.iCH4.Mean_T4,
-           dCO2_i = Delta.13CO2.Mean_T0,
-           dCO2_f = Delta.13CO2.Mean_T4,
+#ignoring T5 data for now
+data %>%
+    select(-`...1`) %>%
+    filter(round != "T5") %>%
+    pivot_wider(id_cols = id, names_from = round,
+                values_from = c(delC,
+                                delCstd,
+                                delM,
+                                delMstd,
+                                Mppm,
+                                M13ppm,
+                                Cppm,
+                                C13ppm,
+                                AP_obs)) %>% #, AP_pred)) %>% Not currently used
+    mutate(intial = (Mppm_T0 + M13ppm_T0),
+           final = (Mppm_T4 + M13ppm_T4),
+           net = final - intial,
+           intialC = (Cppm_T0 + C13ppm_T0),
+           finalC = (Cppm_T4 + C13ppm_T4),
+           netC = finalC - intialC,
+           dCH4_i = delM_T0,
+           dCH4_istd = delMstd_T0,
+           dCH4_f = delM_T4,
+           dCH4_fstd = delMstd_T4,
+           dCO2_i = delC_T0,
+           dCO2_istd = delCstd_T0,
+           dCO2_f = delC_T4,
+           dCO2_fstd = delCstd_T4,
            APintial = AP_obs_T0,
            APfinal = AP_obs_T4) %>%
-    select(Collar, net, intial, final, dCH4_i, dCH4_f,
-           dCO2_i, dCO2_f, APintial, APfinal) -> keep
+    select(id, intial, final, net, intialC, finalC, netC,
+           dCH4_i, dCH4_istd, dCH4_f, dCH4_fstd,
+           dCO2_i, dCO2_istd, dCO2_f, dCO2_fstd,
+           APintial, APfinal) -> timeDat
+
+#combine
+data %>%
+    select(-`...1`) %>%
+    left_join(timeDat, by = "id") %>%
+    mutate(Lab_time = ymd_hms(l_time, tz = "UTC"),
+           Field_time = mdy_hm(f_time, tz = "UTC")) %>%
+    select(-l_time, -f_time) -> allData
+
+#Does error, sample run order, sample run day, or soil moisture explain poor fits?
+
+#AP fit vs methane delta error
+ggplot(data = allData,
+       aes(round, delMstd, color = ap_cor)) +
+    geom_jitter(aes(shape = order), size = 3) +
+    ylab("delta error") + xlab("time")
+#no
+
+#moisture vs methane delta error
+ggplot(data = allData,
+       aes(day(Lab_time), sm, color = ap_cor)) +
+    geom_jitter(aes(shape = Origin), size = 3) +
+    scale_shape_discrete(labels = Olabs) +
+    ylab("soil moisture") + xlab("sample run day")
+#no
+
+#the only thing that even comes close is the final delta
+#and final concentraion
+#samples with bad fits have high deltas
+#and relatively high concentrations
+
+#final concentration and delta value
+ggplot(data = allData[allData$id != 52,],
+       aes(final, dCH4_f, color = ap_cor)) +
+    geom_jitter(aes(shape = Origin), size = 3) +
+    scale_shape_discrete(labels = Olabs) +
+    ylab("final delta") + xlab("final concentraion")
 
 
-#make incubation data with Collar id's
-incdat %>%
-    select(-id, -AP_pred5, -AP_pred, -notes, -vol,
-           -X, -Timestamp, -Timestamp_adj) %>%
-    left_join(deltas2add, by = c("Collar" = "Collar",
-                                 "round" = "round")) %>%
-    left_join(keep, by = "Collar") %>%
-    left_join(paired, by = "Collar") %>%
-    select(-X) %>%
-    relocate(Collar, .before = round) %>%
-    relocate(Origin, .after = Collar) %>%
-    relocate(Location, .after = Origin) -> allData
 
-#gross production vs consumption
-ggplot(data = paired, aes(umolPg, umolKg, colour = sm)) +
-  geom_point(size = 3) +
-  geom_smooth(method = lm, formula = y ~ x) +
+#scaling factor
+size_range <- range(allData$umolPg + 0.0075)/max(allData$umolPg + 0.0075) * 6
+
+#gross consumption vs soil moisture
+#superscripted minus sign is actually as small hyphen
+ggplot(data = na.omit(allData), aes(sm, umolCg)) +
+    geom_jitter(aes(color = Location, size = (umolPg), shape = Location)) +
+    scale_shape_discrete(labels = c("lowland", "upland")) +
+    scale_color_discrete(labels = c("lowland", "upland")) +
+    scale_size_continuous("Gross Production",
+                          range = size_range) +
+    labs(x= "soil water content
+       (H\u2082O * g\uFE63\u00b9 dry soil)",
+         y= "Gross Consumption
+       (\u00b5mol CH\u2084 * g\uFE63\u00b9 dry soil * d\uFE63\u00b9)") +
+    guides(shape = guide_legend(override.aes = list(size = 5))) +
+    theme(text = element_text(size = 18))
+
+#gross production vs soil moisture
+ggplot(data = allData[allData$round == "T1",], aes(sm, umolPg)) +
+  geom_point(aes(color = Origin), size = 3) +
+  scale_color_discrete(labels = Olabs) +
+  geom_smooth(method = lm, formula = y ~ x, se = FALSE) +
   stat_poly_eq(formula = y ~ x,
                aes(label = paste(..eq.label..,
                                  ..rr.label..,
                                  sep = "~~~")))
 
-#gross production vs soil moisutre
-ggplot(data = paired, aes(sm, umolPg)) +
-  geom_point(aes(color = Origin), size = 3) +
-  scale_color_discrete(labels = Olabs) +
-  geom_smooth(method = lm, formula = y ~ x, se = FALSE) +
-  stat_poly_eq(formula = y ~ x,
-               aes(label = paste(..p.value.label..,
-                                 ..eq.label..,
-                                 ..rr.label..,
-                                 sep = "~~~")))
+#initial gross consumption vs soil moisture
+ggplot(data = allData[allData$round == "T1",], aes(sm, umolCg)) +
+    geom_point(aes(color = Origin), size = 3) +
+    scale_color_discrete(labels = Olabs) +
+    geom_smooth(method = lm, formula = y ~ x, se = FALSE) +
+    stat_poly_eq(formula = y ~ x,
+                 aes(label = paste(..eq.label..,
+                                   ..rr.label..,
+                                   sep = "~~~")))
 
-#gross consumption vs soil moisture
-ggplot(data = paired, aes(sm, umolKg, colour = sm)) +
-  geom_point(size = 3) +
-  facet_grid(Location ~ .) +
-  geom_smooth(method = lm, formula = y ~ x) +
-  stat_poly_eq(formula = y ~ x,
-               aes(label = paste(..p.value.label..,
-                                 ..eq.label..,
-                                 ..rr.label..,
-                                 sep = "~~~")))
+#gross consumption vs gross production
+#superscripted minus sign is actually as small hyphen
+ggplot(data = allData, aes(umolCg, umolPg), shape = Location) +
+    geom_jitter(aes(color = sm), size = 5) +
+    scale_shape_discrete(labels = c("lowland", "upland")) +
+    scale_color_distiller("H\u2082O * g\uFE63\u00b9 dry soil") +
+    geom_abline(slope = 1) + lims(x = c(0,0.15), y = c(0,0.15)) +
+    geom_smooth(method = lm, formula = y ~ x, se = FALSE, size = 0.75) +
+    labs(x=  "Gross Consumption
+       (\u00b5mol CH\u2084 * g\uFE63\u00b9 dry soil * d\uFE63\u00b9)",
+         y= "Gross Production
+       (\u00b5mol CH\u2084 * g\uFE63\u00b9 dry soil * d\uFE63\u00b9)") +
+    theme_bw() +
+    theme(text = element_text(size = 15), legend.position = "right")
 
-#comparing field and lab soil moisture
-#needs unit conversion!
-ggplot(data = paired,
-       aes(sm, SWC, color = Collar)) +
-  geom_point(size = 3)
-
-#comparing field and lab flux
-#needs unit conversion!
-ggplot(data = paired,
-       aes(FCH4, umolPg, color = Collar)) +
-  geom_point(size = 3)
 
 #accumulation of methane over incubation
-#need adjustment for dilution!
-#headspace and sample
-ggplot(data = allData[allData$Collar != 52,],
-       aes(round, (cal13CH4ml + cal12CH4ml), color = sm)) +
+#without our friend 52
+ggplot(data = allData[allData$id != 52,],
+       aes(round, (Mppm + M13ppm), color = sm)) +
     geom_point(aes(shape = Location), size = 3) +
-    geom_line(aes(group = Collar)) +
+    geom_line(aes(group = id)) +
     ylab("ppm CH4") + xlab("Sampling Time") +
     scale_color_continuous(name = "Soil Moisture") +
     scale_shape_discrete(labels = c("lowland",
-                                    "upslope")) +
+                                    "upland")) +
     facet_wrap(Origin ~ ., labeller = as_labeller(labellies))
 
-#accumulation of methane over incubation
-#need adjustment for dilution!
-#headspace and sample
-ggplot(data = allData, #[allData$Location != "g_up",],
-       aes(round, (cal13CH4ml + cal12CH4ml), colour = Origin)) +
-    geom_point(size = 3) +
-    geom_line(aes(group = Collar)) +
-    ylab("ppm CH4") + xlab("Sampling Time") +
-    scale_color_discrete(labels = Olabs)
 
-
-#change in 13C signature over incubation
-ggplot(data = allData, #[allData$Collar != 52,],
-       aes(round, HR.Delta.iCH4.Mean, color = sm)) +
-    geom_point(aes(shape = Location), size = 3) +
-    geom_line(aes(group = Collar)) +
-    ylab("per mil") + xlab("Sampling Time") +
-    scale_color_continuous(name = "Soil Moisture") +
-    scale_shape_discrete(labels = c("lowland",
-                                    "upslope")) +
-    facet_wrap(Origin ~ ., labeller = as_labeller(labellies))
 
 
 #drop redundant rows from long form data
 allData %>%
-    select(Location, Origin, Collar,
-           umolKg, umolPg, sm,
+    select(Location, Origin, id,
+           umolCg, umolPg, sm,
            mass, FCH4, dCH4_f,
-           dCH4_i, net, k0) %>%
+           dCH4_i, net) %>%
     unique() -> graph
 
 #summary of net incubation
-ggplot(graph[graph$Collar != 52,],
+ggplot(graph[graph$id != 52,],
        aes(Location, net, fill = Origin)) +
     scale_x_discrete(labels = c("lowland",
-                                "upslope")) +
+                                "upland")) +
     scale_fill_discrete(labels = Olabs) +
     geom_boxplot()
 
 #summary of production
-ggplot(graph,
+ggplot(graph[graph$id != 52,],
        aes(Location, umolPg, fill = Origin)) +
     scale_x_discrete(labels = c("lowland",
-                                "upslope")) +
+                                "upland")) +
     scale_fill_discrete(labels = Olabs) +
     geom_boxplot()
 
 #summary of net rates
 ggplot(graph,
-       aes(Location, umolPg+umolKg, fill = Origin)) +
+       aes(Location, net, fill = Origin)) +
     scale_x_discrete(labels = c("lowland",
-                                "upslope")) +
+                                "upland")) +
     scale_fill_discrete(labels = Olabs) +
     geom_boxplot()
 
 
 #summary of terminal delta values
 ggplot(graph,
-       aes(Collar, dCH4_f,  color = Origin)) +
-    facet_wrap(. ~ Location, scales = "free",
-               labeller = as_labeller(labellies)) +
-    scale_color_discrete(labels = Olabs) +
-    geom_point(aes(size = sm)) + theme_bw()
+       aes(Location, dCH4_f,  fill = Origin)) +
+    scale_x_discrete(labels = c("lowland",
+                                "upland")) +
+    scale_fill_discrete(labels = Olabs) +
+    geom_boxplot() + theme_bw()
 
+
+#summary of field net rates
+ggplot(graph[graph$FCH4 < 360,],
+       aes(Origin, FCH4, fill = Origin)) +
+    scale_x_discrete(labels = Olabs,
+    ) +
+    scale_fill_discrete(labels = Olabs) +
+    labs(x= " ",
+         y= "Net Rate \n (nmol CH\u2084 * m\u207b\u00B2 * s\u207b\u00b9)") +
+    theme_bw() + geom_boxplot() +
+    facet_grid(Location ~ . , scales = 'free',
+               labeller = as_labeller(labellies)) +
+    theme(axis.text.x = element_text(angle = 22.5,
+                                     hjust = 1))
+
+#comparing field and lab soil moisture
+#needs unit conversion!
+ggplot(data = allData,
+       aes(sm, SWC, color = id)) +
+    geom_point(size = 3)
+
+#comparing field and lab flux
+#needs unit conversion!
+ggplot(data = allData,
+       aes(FCH4, umolPg, color = id)) +
+    geom_point(size = 3)
