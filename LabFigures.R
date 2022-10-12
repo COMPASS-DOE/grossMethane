@@ -6,8 +6,6 @@
 # October 2022
 # Kendalynn A. Morris
 
-Sys.setenv(TZ = "America/New_York")
-
 library(car)
 library(dplyr)
 library(emojifont)
@@ -90,7 +88,7 @@ ggplot(data = allData,
 #no
 
 #the only thing that even comes close is the final delta
-#and final concentraion
+#and final concentration
 #samples with bad fits have high deltas
 #and relatively high concentrations
 

@@ -133,6 +133,7 @@ CPdat <- data[data$round == "T1",]
 
 ###
 #production
+###
 hist(CPdat$umolPg)
 qqnorm(CPdat$umolPg);qqline(CPdat$umolPg)
 transformTukey(CPdat$umolPg,
@@ -142,8 +143,11 @@ transformTukey(CPdat$umolPg,
 hist((CPdat$umolPg)^0.26)
 qqnorm(CPdat$umolPg^0.26);qqline(data$CPdat^0.26)
 
-#analysis
-production <- aov(umolPg^0.26 ~ Origin + Location + sm,
+#P analysis
+###Looked at Origin*sm, n.s.
+#also origin and sm alone within one location
+#there is no evidence that either influences gross production
+production <- aov(umolPg^0.26 ~ sm,
                           data = CPdat)
 Anova(production, type="III")
 par(mfrow=c(2,2))
@@ -162,8 +166,11 @@ transformTukey(CPdat$umolCg,
 hist(-1 * (CPdat$umolCg)^-0.58)
 qqnorm(-1 * (CPdat$umolCg)^-0.58);qqline(-1 * (CPdat$umolCg)^-0.58)
 
-#analysis
-consumption <- aov((-1 * (umolCg)^-0.58) ~ Origin + Location + sm,
+#C analysis
+###Looked at Origin*sm, n.s.
+#also origin and sm alone within one location
+#there is no evidence that either influences gross production
+consumption <- aov((-1 * (umolCg)^-0.58) ~ Location,
                data = CPdat)
 Anova(consumption, type="III")
 par(mfrow=c(2,2))
