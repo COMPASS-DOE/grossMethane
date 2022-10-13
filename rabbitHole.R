@@ -1,190 +1,134 @@
-library(tibble)
-library(ggplot2)
-library(ggpmisc)
-library(dplyr)
-library(tidyr)
-library(readr)
-library(knitr)
-library(lubridate)
-library(car)
-theme_set(theme_bw())
 
-Olabs <- c("lowland", "midslope", "upslope", "midstream", "upstream")
-Llabs <- c("lowland", "midslope", "upslope")
-labellies <- c('g_low' = "lowland",
-               'g_mid' = "midslope",
-               'g_up' = "upslope",
-               'midstream' = "midstream",
-               'upstream' = "upstream")
+#final concentration and delta value
+ggplot(data = allData,
+       aes(final, dCH4_f, color = ap_cor)) +
+    geom_jitter(aes(shape = Origin), size = 3) +
+    scale_shape_discrete(labels = Olabs) +
+    ylim(-100,300) + xlim(1,7) +
+    ylab("final delta") + xlab("final concentraion")
 
-ln_dat <- read.csv("27092022_ln_results.csv")
-dat <- read.csv("27092022_results.csv")
-paired <- read.csv("PairedData.csv")
+allData %>%
+    arrange(ap_cor) %>%
+    filter(final > 1.8,
+           dCH4_f > 100) %>%
+    mutate(apfit = ifelse(ap_cor > 0.5,
+                          "ap_good",
+                          "ap_bad")) -> patternT
+unique(patternT$id)
+patternT_ids <- c("2","69","64","55","60","58",
+         "59","44","61","51","41","63")
 
-ln_dat %>%
-    filter(id != "17",
-           net < 0) %>%
-    mutate(Collar = as.character(id),
-           k0fit = "ln") %>%
-    select(-X, -id) %>%
-    pivot_longer(cols = c("P", "k", "k0", "ml_k", "net"),
-                 names_to = "variable") -> ln_dat2
-dat %>%
-    filter(id != "17",
-           k < 0) %>%
-    mutate(Collar = as.character(id),
-           k0fit = "normal") %>%
-    select(-X, -id) %>%
-    pivot_longer(cols = c("P", "k", "k0", "ml_k", "net"),
-                 names_to = "variable") %>%
-    bind_rows(ln_dat2) %>%
-        pivot_wider(id_cols = c(Collar, k0fit),
-                    names_from = "variable") -> long
+ggplot(patternT, aes(round, AP_obs)) +
+    geom_line(aes(color = id, group = id), size = 0.5) +
+    geom_point(aes(color = id), size = 3) +
+    facet_grid(apfit~.)
 
-paired %>%
-    select(Collar, Origin, Location,
-           mass, sm, -X) %>%
-    mutate(Collar = as.character(paired$Collar))  %>%
-    right_join(long, by = "Collar") %>%
-    mutate(umolPg = (P * 44.64)/mass, #calculate umol of gas per g dry soil per day for Production
-           umolkg = (ml_k * 44.64/mass) #calculate umol of gas per g dry soil per day for Consumption
-           ) -> graph
+ggplot(patternT, aes(round, Mppm)) +
+    geom_line(aes(color = id, group = id), size = 0.5) +
+    geom_point(aes(color = id), size = 3) +
+    facet_grid(apfit~.)
 
-ggplot(graph,
-       aes(Location, umolPg+umolKg, fill = Origin)) +
-    scale_x_discrete(labels = c("lowland",
-                                "upslope")) +
-    scale_fill_discrete(labels = Olabs) +
-    facet_grid(k0fit~.) +
-    geom_boxplot()
+ggplot(pk_results, aes(k0, k)) +
+    geom_abline(slope = 1) +
+    geom_point(aes(color = ap_cor), size = 3) +
+    ggtitle("All Data")
 
-graph %>%
-    ungroup() %>%
-    group_by(Collar, Location, Origin) %>%
-    summarize(P = mean(P, na.rm = TRUE),
-              k = mean(k, na.rm = TRUE),
-              k0 = mean(k0, na.rm = TRUE),
-              ml_k = mean(ml_k, na.rm = TRUE),
-              net_sd = sd(net, na.rm = TRUE),
-              net = mean(net, na.rm = TRUE),
-              sm = mean(sm, na.rm = TRUE),
-              umolPg = mean(umolPg, na.rm = TRUE),
-              umolkg = mean(umolkg, na.rm = TRUE),
-              n = n()) %>%
-    ungroup() -> graph_sums
+pk_results %>%
+    filter(k < 15,
+        k0 < 20) %>%
+    arrange(id) -> slopeTs
 
-#summary of lab net rates
-ggplot(graph_sums,
-       aes(Location, net, fill = Origin)) +
-    scale_x_discrete(labels = c("lowland",
-                                "upslope")) +
-    scale_fill_discrete(labels = Olabs) +
-    labs(x= "Location",
-         y= "Net Rate \n (\u00b5mol CH\u2084 * g\u207b\u00b9 dry soil * d\u207b\u00b9)") +
-    theme_bw() +
-    geom_boxplot()
+ggplot(slopeTs, aes(k0, k)) +
+    geom_abline(slope = 1) +
+    geom_point(aes(color = ap_cor), size = 3) +
+    ggtitle("k & k0 < 20")
 
-#summary of field net rates
-ggplot(paired[paired$FCH4 < 360,],
-       aes(Origin, FCH4, fill = Origin)) +
-    scale_x_discrete(labels = Olabs,
-                     ) +
-    scale_fill_discrete(labels = Olabs) +
-    labs(x= " ",
-         y= "Net Rate \n (nmol CH\u2084 * m\u207b\u00B2 * s\u207b\u00b9)") +
-    theme_bw() + geom_boxplot() +
-    facet_grid(Location ~ . , scales = 'free',
-               labeller = as_labeller(labellies)) +
-    theme(axis.text.x = element_text(angle = 22.5,
-            hjust = 1))
+#remove low k's
+slopeT_ids <- unique(slopeTs[slopeTs$k > 5,]$id)
 
-#summary of production
-ggplot(graph_sums,
-       aes(Location, umolPg, fill = Origin)) +
-    scale_x_discrete(labels = c("lowland",
-                                "upslope")) +
-    scale_fill_discrete(labels = Olabs) +
-    labs(x= "Location",
-         y= "production \n (\u00b5mol CH\u2084 * g\u207b\u00b9 dry soil * d\u207b\u00b9)") +
-    geom_boxplot()
+pk_results %>%
+    select("id","k", "k0") %>%
+    filter(id %in% slopeT_ids) %>%
+    left_join(allData, by = "id") %>%
+    arrange(id) -> one2one
 
+ggplot(one2one, aes(k0, k)) +
+    geom_abline(slope = 1) +
+    ylim(5,25) + xlim(5,25) +
+    geom_point(aes(color = ap_cor), size = 3) +
+    ggtitle("Slope Targets")
 
-ggplot(graph_sums, aes(sm, umolPg)) +
-    geom_point(aes(color = Origin, shape = Location),
-               size = 3) +
-    geom_smooth(method = lm, formula = y ~ x, se = FALSE) +
-    stat_poly_eq(formula = y ~ x,
-                 aes(label = paste(..eq.label..,
-                                   ..rr.label..,
-                                   ..p.value.label..,
-                                   sep = "~~~"))) +
-    scale_color_discrete(labels = Olabs) +
-    scale_shape_discrete(labels = c("lowland",
-                                    "upland")) +
-    labs(x= "soil water content\n (H\u2082O * g\u207b\u00b9 dry soil)",
-         y= "production \n (\u00b5mol CH\u2084 * g\u207b\u00b9 dry soil * d\u207b\u00b9)")
-    theme_bw()
+pk_results %>%
+    select("id","k", "k0") %>%
+    filter(id %in% patternT_ids) %>%
+    left_join(allData, by = "id") %>%
+    arrange(id) %>%
+    mutate(apfit = ifelse(ap_cor > 0.5,
+                          "ap_good",
+                          "ap_bad"),
+           group = ifelse(ap_cor > 0.5,
+                          "pattern",
+                          "both")) -> pattern2one
 
-ggplot(graph_sums, aes(sm, umolkg)) +
-    geom_point(aes(color = Origin, shape = Location),
-               size = 3) +
-    geom_smooth(method = lm, formula = y ~ x, se = FALSE) +
-    stat_poly_eq(formula = y ~ x, label.y = "bottom",
-                 aes(label = paste(..eq.label..,
-                                   ..rr.label..,
-                                   ..p.value.label..,
-                                   sep = "~~~"))) +
-    scale_color_discrete(labels = Olabs) +
-    scale_shape_discrete(labels = c("lowland",
-                                    "upland")) +
-    labs(x= "soil water content\n (H\u2082O * g\u207b\u00b9 dry soil)",
-         y= "consumption \n (\u00b5mol CH\u2084 * g\u207b\u00b9 dry soil * d\u207b\u00b9)")
-    theme_bw()
+ggplot(pattern2one, aes(k0, k)) +
+    geom_abline(slope = 1) +
+    ylim(5,25) + xlim(5,25) +
+    geom_point(aes(color = id, shape = apfit), size = 3) +
+    ggtitle("Pattern Targets")
 
-ggplot(graph_sums,
-       aes(umolPg, umolkg, color = Origin,
-           shape = Location)) +
-    geom_point(size = 3)
+pk_results %>%
+    select("id","k", "k0") %>%
+    filter(id %in% slopeT_ids) %>%
+    left_join(allData, by = "id") %>%
+    arrange(id) %>%
+    mutate(apfit = ifelse(ap_cor > 0.5,
+                          "ap_good",
+                          "ap_bad"),
+           group = ifelse(ap_cor > 0.5,
+                          "slope",
+                          "both")) -> slope2one
 
-hist(graph_sums$umolPg)
-hist(log10(graph_sums$umolPg+50))
-graph_sums$logP <- log10(graph_sums$umolPg + 50)
-hist(graph_sums$umolkg)
-hist(sqrt(graph_sums$umolkg + 1050))
-graph_sums$rtK <- sqrt(graph_sums$umolkg + 1050)
+ggplot(slope2one, aes(k0, k)) +
+    geom_abline(slope = 1) +
+    ylim(5,25) + xlim(5,25) +
+    geom_point(aes(color = id, shape = apfit), size = 3) +
+    ggtitle("Slope Targets")
 
+# > setdiff(slopeT_ids, patternT_ids)
+# [1] "29" "32" "52"
+# > setdiff(patternT_ids, slopeT_ids)
+# [1] "61" "51"
 
-consumption <- aov(rtK ~ Location,
-                   data = graph_sums)
-summary(consumption, type="III")
-par(mfrow=c(2,2))
-plot(consumption)
-dev.off()
+master_ids <- c("2","29","32","69","64","55","60","58",
+            "59","44","61","51","52","41","63")
 
-production <- aov(logP ~ Location + sm,
-                  data = graph_sums)
-summary(production, type="III")
-par(mfrow=c(2,2))
-plot(production)
-dev.off()
+pk_results %>%
+    arrange(ap_cor) %>%
+    mutate(apfit = ifelse(ap_cor > 0.5,
+                          "ap_good",
+                          "ap_bad")) %>%
+    filter(id %in% master_ids) %>%
+    select("id","k","k0","apfit") %>%
+    left_join(allData, by = "id") -> master
 
-field <- aov(FCH4 ~ Location,
-                  data = paired)
-summary(field , type="III")
-par(mfrow=c(2,2))
-plot(field)
-dev.off()
+master
 
-soil_field <- aov(SWC ~ Location,
-             data = paired)
-summary(soil_field, type="III")
-par(mfrow=c(2,2))
-plot(soil_field)
-dev.off()
+ggplot(master, aes(round, AP_obs)) +
+    geom_line(aes(color = id, group = id), size = 0.5) +
+    geom_point(aes(color = id), size = 3) +
+    facet_grid(apfit~.)
 
-soil_lab <- aov(sm ~ Origin,
-            data = graph_sums)
-summary(soil_lab , type="III")
-par(mfrow=c(2,2))
-plot(soil_lab)
-dev.off()
+ggplot(master, aes(round, Mppm)) +
+    geom_line(aes(color = id, group = id), size = 0.5) +
+    geom_point(aes(color = id), size = 3) +
+    facet_grid(apfit~.)
+
+ggplot(master, aes(k0, k)) +
+    geom_abline(slope = 1) +
+    geom_point(aes(color = dCH4_f,
+                   size = final)) +
+    geom_text(aes(label = id),
+              nudge_y = -0.75,
+              check_overlap = T) +
+    facet_grid(apfit~.) +
+    ggtitle("Slope and Pattern")
