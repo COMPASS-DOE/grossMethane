@@ -4,6 +4,7 @@
 .Ruserdata
 
 *.csv
+*.html
 
 #field-measurements
 field-measurements/*.csv

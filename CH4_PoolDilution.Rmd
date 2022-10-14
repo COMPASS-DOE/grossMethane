@@ -282,13 +282,13 @@ performance_summary %>%
 
 ## Summary Plots
 
-```{r Summary Plots, echo = FALSE}
+```{r Summary Plots, echo = FALSE, fig.width = 14, fig.height=22}
 # ----- Plot AP results -----
 
 ggplot(incdat_out, aes(time_days)) +
     geom_point(aes(y = AP_obs)) +
     geom_line(aes(y = AP_pred, color = ap_cor), linetype = 2, size = 1) +
-    facet_wrap(~as.numeric(id), scales = "free", ncol = 4) +
+    facet_wrap(~as.numeric(id), scales = "free") +
     ggtitle("Atom Percent Fits") +
     theme(legend.position = "bottom")
 
@@ -298,17 +298,22 @@ ggplot(incdat_out, aes(time_days)) +
 ggplot(incdat_out, aes(time_days)) +
     geom_point(aes(y = cal12CH4ml + cal13CH4ml)) +
     geom_line(aes(y = mt, color = m_cor), linetype = 2, size = 1) +
-    facet_wrap(~as.numeric(id), scales = "free", ncol = 4) +
+    facet_wrap(~as.numeric(id), scales = "free") +
     ggtitle("Methane Volume Fits") +
     theme(legend.position = "bottom")
 
+
+```
+
+```{r Fit Trends, echo = FALSE, fig.width = 8, fig.height=8}
 # ----- Visualize data, coloring by fit -----
 
 incdat_out %>%
     pivot_longer(cols = c(cal12CH4ml, cal13CH4ml, AP_obs)) %>%
     ggplot(aes(round, value, group = id, color = ap_cor)) +
     geom_point() + geom_line() +
-    facet_wrap( ~ name, scales = "free")
+    facet_wrap( ~ name, scales = "free") +
+    ggtitle("Fit Trends")
 
 message("All done. :)")
 ```
