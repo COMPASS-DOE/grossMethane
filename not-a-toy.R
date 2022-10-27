@@ -53,6 +53,9 @@ FRAC_K <- 0.98 # 13C consumption as a fraction of 12C consumption (alpha in Eq. 
 FRAC_P <- 0.01 # 13C production as a fraction of 12C production
 AP_P <- FRAC_P / (1 + FRAC_P) * 100 # 13C atom percent of total methane production
 VOL_ML <- 130  # headspace volume of jar
+sd_Dinst = 0.01
+sd_Cinst = 0.001
+OLD_METHOD <- FALSE
 
 # ----- Unit conversion -----
 
@@ -67,11 +70,14 @@ incdat_raw %>%
            cal12CH4ml = if_else(round != "T0", cal12CH4ml * 1.083, cal12CH4ml),
            cal13CH4ml = if_else(round != "T0", cal13CH4ml * 1.083, cal13CH4ml),
            # calculate atom percent (AP) of 13C methane in sample over time
-           AP_obs = cal13CH4ml / (cal12CH4ml + cal13CH4ml) * 100) ->
+           AP_obs = cal13CH4ml / (cal12CH4ml + cal13CH4ml) * 100,
+           sdC = `HR 12CH4 Std`, sdD = `HR Delta iCH4 Std`) ->
     incdat
 
-#incdat <- filter(incdat, id %in% c("2", "4", "52", "71"))
-#, "52", "4", "71"
+incdat <- filter(incdat, id %in% c("2", "4", "31", "71", "87"))
+# "52"
+Nd <- incdat$sdD/sd_Dinst
+Nm <- incdat$sdC/sd_Cinst
 
 # ----- Data visualization -----
 
@@ -126,26 +132,33 @@ ap_prediction <- function(time, m0, n0, P, k) {
 # m: observed total methane values, same length as time
 # n: observed labeled methane values, same length as time
 # Returns the sum of squares between predicted and observed m and AP
-cost_function <- function(params, time, m, n) {
+cost_function <- function(params, time, m, n, sdD, sdC) {
     #    message(params["P"], ",", params["k"])
     pred <- ap_prediction(time = time,
                           m0 = m[1],
                           n0 = n[1],
                           P = params["P"],
-                          k = params["k"])
+                          k = params["k"]
+                          )
 
-    # m and n are on different scales, so we need to scale them
-    # in order to combine for a single sum of squares calculation
-    # First find overall ranges...
-    m_range <- range(c(pred$mt, m, na.rm = TRUE))
-    n_range <- range(c(pred$nt, n, na.rm = TRUE))
-    # ...and then rescale
-    mt_r <- rescale(pred$mt, from = m_range)
-    nt_r <- rescale(pred$nt, from = n_range)
-    m_r <- rescale(m, from = m_range)
-    n_r <- rescale(n, from = n_range)
-    # Return overall sum of squares to the optimizer
-    sum((c(mt_r, nt_r) - c(m_r, n_r)) ^ 2)
+    if(OLD_METHOD) {
+      # m and n are on different scales, so we need to scale them
+      # in order to combine for a single sum of squares calculation
+      # First find overall ranges...
+      m_range <- range(c(pred$mt, m, na.rm = TRUE))
+      n_range <- range(c(pred$nt, n, na.rm = TRUE))
+      # ...and then rescale
+      mt_r <- rescale(pred$mt, from = m_range)
+      nt_r <- rescale(pred$nt, from = n_range)
+      m_r <- rescale(m, from = m_range)
+      n_r <- rescale(n, from = n_range)
+      # Return overall sum of squares to the optimizer
+      sum((c(mt_r, nt_r) - c(m_r, n_r)) ^ 2)
+      
+    } else {
+      sum(((m - pred$mt)/sd(m))*Nm + ((n - pred$nt)/sd(n))*Nd)
+      #the weight values from eqs 13&14 will go above
+    }
 }
 
 
@@ -159,7 +172,8 @@ for(i in unique(incdat$id)) {
     # Isolate this sample's data
     incdat %>%
         filter(id == i) %>%
-        select(id, round, vol, time_days, cal12CH4ml, cal13CH4ml, AP_obs) ->
+        select(id, round, vol, time_days, cal12CH4ml, cal13CH4ml,
+               AP_obs, sdD, sdC) ->
         dat
 
     # Estimate starting k by slope of 13C.  This follows para. 21:
@@ -192,7 +206,9 @@ for(i in unique(incdat$id)) {
                     # "..." that the optimizer will pass to cost_function:
                     time = dat$time_days,
                     m = dat$cal12CH4ml + dat$cal13CH4ml,
-                    n = dat$cal13CH4ml)
+                    n = dat$cal13CH4ml,
+                    sdC = dat$sdC,
+                    sdD = dat$sdD)
 
     message("Optimizer solution:")
     print(result)
@@ -221,6 +237,7 @@ for(i in unique(incdat$id)) {
     change_time <- c(0, diff(dat$time_days))
     dat$Pt <- P * change_time
     dat$Ct <- (-change_methane + (P * change_time)) / change_time
+    dat$style <- if_else(OLD_METHOD == TRUE, "old", "new")
 
     incdat_out[[i]] <- dat
 }
@@ -228,7 +245,7 @@ for(i in unique(incdat$id)) {
 pk_results <- bind_rows(pk_results, .id = "id")
 incdat_out <- bind_rows(incdat_out)
 
-incdat_out %>%
+incdat_old %>%
     # compute correlation between predictions and observations
     group_by(id) %>%
     summarise(m_cor = cor(cal12CH4ml + cal13CH4ml, mt),
@@ -244,24 +261,25 @@ performance_summary %>%
 
 message("Done with optimization")
 
+comparison <- bind_rows(incdat_old, incdat_new)
 
 # ----- Plot AP results -----
 
-ap_pred <- ggplot(incdat_out, aes(time_days)) +
+ap_pred <- ggplot(comparison, aes(time_days)) +
     geom_point(aes(y = AP_obs)) +
-    geom_line(aes(y = AP_pred, color = ap_cor), linetype = 2, size = 1) +
+    geom_line(aes(y = AP_pred, color = ap_cor, linetype = style), size = 1) +
     facet_wrap(~as.numeric(id), scales = "free")
 print(ap_pred)
-ggsave("./outputs/ap_pred.png", width = 8, height = 6)
+ggsave("./outputs/ap_predCOMPARE.png", width = 8, height = 6)
 
 # ----- Plot total methane results -----
 
-m_pred <- ggplot(incdat_out, aes(time_days)) +
+m_pred <- ggplot(comparison, aes(time_days)) +
     geom_point(aes(y = cal12CH4ml + cal13CH4ml)) +
-    geom_line(aes(y = mt, color = m_cor), linetype = 2, size = 1) +
+    geom_line(aes(y = mt, color = m_cor, linetype = style), size = 1) +
     facet_wrap(~as.numeric(id), scales = "free")
 print(m_pred)
-ggsave("./outputs/m_pred.png", width = 8, height = 6)
+ggsave("./outputs/m_predCOMPARE.png", width = 8, height = 6)
 
 # ----- Visualize data, coloring by fit -----
 
