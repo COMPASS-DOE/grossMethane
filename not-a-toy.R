@@ -53,9 +53,9 @@ FRAC_K <- 0.98 # 13C consumption as a fraction of 12C consumption (alpha in Eq. 
 FRAC_P <- 0.01 # 13C production as a fraction of 12C production
 AP_P <- FRAC_P / (1 + FRAC_P) * 100 # 13C atom percent of total methane production
 VOL_ML <- 130  # headspace volume of jar
-sd_Dinst = 0.01
-sd_Cinst = 0.001
-OLD_METHOD <- FALSE
+sd_Dinst = 0.01 #  here and below, place holder values
+sd_Cinst = 0.001 # instrument standard precision
+OLD_METHOD <- TRUE
 
 # ----- Unit conversion -----
 
@@ -74,7 +74,7 @@ incdat_raw %>%
            sdC = `HR 12CH4 Std`, sdD = `HR Delta iCH4 Std`) ->
     incdat
 
-incdat <- filter(incdat, id %in% c("2", "4", "31", "71", "87"))
+#incdat <- filter(incdat, id %in% c("2", "4", "31", "71", "87"))
 # "52"
 Nd <- incdat$sdD/sd_Dinst
 Nm <- incdat$sdC/sd_Cinst
@@ -156,7 +156,7 @@ cost_function <- function(params, time, m, n, sdD, sdC) {
       sum((c(mt_r, nt_r) - c(m_r, n_r)) ^ 2)
       
     } else {
-      sum(((m - pred$mt)/sd(m))*Nm + ((n - pred$nt)/sd(n))*Nd)
+      sum((abs(m - pred$mt)/sd(m))*Nm + (abs(n - pred$nt)/sd(n))*Nd)
       #the weight values from eqs 13&14 will go above
     }
 }
@@ -245,7 +245,7 @@ for(i in unique(incdat$id)) {
 pk_results <- bind_rows(pk_results, .id = "id")
 incdat_out <- bind_rows(incdat_out)
 
-incdat_old %>%
+incdat_out %>%
     # compute correlation between predictions and observations
     group_by(id) %>%
     summarise(m_cor = cor(cal12CH4ml + cal13CH4ml, mt),
@@ -283,11 +283,11 @@ ggsave("./outputs/m_predCOMPARE.png", width = 8, height = 6)
 
 # ----- Visualize data, coloring by fit -----
 
-incdat_out %>%
+comparison %>%
     pivot_longer(cols = c(cal12CH4ml, cal13CH4ml, AP_obs)) %>%
     ggplot(aes(round, value, group = id, color = ap_cor)) +
     geom_point() + geom_line() +
-    facet_wrap( ~ name, scales = "free") ->
+    facet_wrap(style ~ name, scales = "free") ->
     ap_fits
 print(ap_fits)
 ggsave("./outputs/ap_fits.png", width = 8, height = 6)
