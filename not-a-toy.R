@@ -75,6 +75,11 @@ incdat_raw %>%
 
 #incdat <- filter(incdat, id %in% c("2", "4", "31", "71", "87"))
 # "52"
+
+#for equations 12,13,&14
+#need standard deviation of the 5 timepoints -> sd_obs
+#and standard deviation of the analytical precision (instrument stdev) for those obs
+#coined here as sd_inst
 incdat %>% 
   group_by(id) %>% 
   mutate(sd_obsDelta = sd(`HR Delta iCH4 Mean`),
@@ -84,11 +89,6 @@ incdat %>%
 
 Nd <- incdat$sd_obsDelta/incdat$sd_instDelta
 Nm <- incdat$sd_obsMass/incdat$sd_instMass
-
-#need standard deviation of the 5 timepoints -> sd_obs
-#and standard deviation of the analytial precision (instrument stdev) for those obs
-#coined here as sd_inst
-
 
 
 # ----- Data visualization -----
