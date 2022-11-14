@@ -53,9 +53,8 @@ FRAC_K <- 0.98 # 13C consumption as a fraction of 12C consumption (alpha in Eq. 
 FRAC_P <- 0.01 # 13C production as a fraction of 12C production
 AP_P <- FRAC_P / (1 + FRAC_P) * 100 # 13C atom percent of total methane production
 VOL_ML <- 130  # headspace volume of jar
-sd_Dinst = 0.01 #  here and below, place holder values
-sd_Cinst = 0.001 # instrument standard precision
-OLD_METHOD <- TRUE
+# don't think we need these anymore
+OLD_METHOD <- FALSE
 
 # ----- Unit conversion -----
 
@@ -76,8 +75,21 @@ incdat_raw %>%
 
 #incdat <- filter(incdat, id %in% c("2", "4", "31", "71", "87"))
 # "52"
-Nd <- incdat$sdD/sd_Dinst
-Nm <- incdat$sdC/sd_Cinst
+incdat %>% 
+  group_by(id) %>% 
+  mutate(sd_obsDelta = sd(`HR Delta iCH4 Mean`),
+         sd_instDelta = sd(sdD),
+         sd_obsMass = sd(`HR 12CH4 Mean`),
+         sd_instMass = sd(sdC)) -> incdat
+
+Nd <- incdat$sd_obsDelta/incdat$sd_instDelta
+Nm <- incdat$sd_obsMass/incdat$sd_instMass
+
+#need standard deviation of the 5 timepoints -> sd_obs
+#and standard deviation of the analytial precision (instrument stdev) for those obs
+#coined here as sd_inst
+
+
 
 # ----- Data visualization -----
 
@@ -261,6 +273,7 @@ performance_summary %>%
 
 message("Done with optimization")
 
+incdat_new <- incdat_out
 comparison <- bind_rows(incdat_old, incdat_new)
 
 # ----- Plot AP results -----
