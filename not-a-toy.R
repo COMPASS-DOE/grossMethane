@@ -54,7 +54,6 @@ FRAC_K <- 0.98 # 13C consumption as a fraction of 12C consumption (alpha in Eq. 
 FRAC_P <- 0.01 # 13C production as a fraction of 12C production
 AP_P <- FRAC_P / (1 + FRAC_P) * 100 # 13C atom percent of total methane production
 VOL_ML <- 130
-OLD_METHOD <- FALSE
 
 # ----- Unit conversion -----
 
@@ -151,27 +150,8 @@ cost_function <- function(params, time, m, n, Nd, Nm) {
                           P = params["P"],
                           k = params["k"]
                           )
-
-    if(OLD_METHOD) {
-      # m and n are on different scales, so we need to scale them
-      # in order to combine for a single sum of squares calculation
-      # First find overall ranges...
-      m_range <- range(c(pred$mt, m, na.rm = TRUE))
-      n_range <- range(c(pred$nt, n, na.rm = TRUE))
-      # ...and then rescale
-      mt_r <- rescale(pred$mt, from = m_range)
-      nt_r <- rescale(pred$nt, from = n_range)
-      m_r <- rescale(m, from = m_range)
-      n_r <- rescale(n, from = n_range)
-      # Return overall sum of squares to the optimizer
-      sum((c(mt_r, nt_r) - c(m_r, n_r)) ^ 2)
-      
-    } else {
-      #vFH eq 14
-      sum((abs(m - pred$mt)/sd(m))*Nm + (abs(n - pred$nt)/sd(n))*Nd)
-      #Nm and Nd derive from eq 12 & 13
+    sum((abs(m - pred$mt)/sd(m))*Nm + (abs(n - pred$nt)/sd(n))*Nd)
     }
-}
 
 
 # ----- Main -----
@@ -249,7 +229,6 @@ for(i in unique(incdat$id)) {
     change_time <- c(0, diff(dat$time_days))
     dat$Pt <- P * change_time
     dat$Ct <- (-change_methane + (P * change_time)) / change_time
-    dat$style <- if_else(OLD_METHOD, "old", "new")
 
     incdat_out[[i]] <- dat
 }
@@ -273,37 +252,40 @@ performance_summary %>%
 
 message("Done with optimization")
 
-incdat_new <- incdat_out
-comparison <- bind_rows(incdat_old, incdat_new)
-
 # ----- Plot AP results -----
 
-ap_pred <- ggplot(comparison, aes(time_days)) +
+ap_pred <- ggplot(incdat_out, aes(time_days)) +
     geom_point(aes(y = AP_obs)) +
-    geom_line(aes(y = AP_pred, color = ap_cor, linetype = style), size = 1) +
+    geom_line(aes(y = AP_pred, color = ap_cor), size = 1) +
     facet_wrap(~as.numeric(id), scales = "free")
 print(ap_pred)
-ggsave("./outputs/ap_predCOMPARE.png", width = 8, height = 6)
+ggsave("./outputs/ap_pred.png", width = 8, height = 6)
 
 # ----- Plot total methane results -----
 
-m_pred <- ggplot(comparison, aes(time_days)) +
+m_pred <- ggplot(incdat_out, aes(time_days)) +
     geom_point(aes(y = cal12CH4ml + cal13CH4ml)) +
-    geom_line(aes(y = mt, color = m_cor, linetype = style), size = 1) +
+    geom_line(aes(y = mt, color = m_cor,), size = 1) +
     facet_wrap(~as.numeric(id), scales = "free")
 print(m_pred)
-ggsave("./outputs/m_predCOMPARE.png", width = 8, height = 6)
+ggsave("./outputs/m_pred.png", width = 8, height = 6)
 
 # ----- Visualize data, coloring by fit -----
 
-comparison %>%
+incdat_out %>%
     pivot_longer(cols = c(cal12CH4ml, cal13CH4ml, AP_obs)) %>%
     ggplot(aes(round, value, group = id, color = ap_cor)) +
     geom_point() + geom_line() +
-    facet_wrap(style ~ name, scales = "free") ->
+    facet_wrap(~name, scales = "free") ->
     ap_fits
 print(ap_fits)
 ggsave("./outputs/ap_fits.png", width = 8, height = 6)
+
+ggplot(pk_results,
+       aes(ap_cor,
+           fill = as.factor(convergence))) +
+  geom_histogram()
+
 
 print(pk_results)
 
