@@ -3,8 +3,12 @@
 .RData
 .Ruserdata
 
+CH4_PoolDilution.html
+CH4_PoolDilution.pdf
+
 *.csv
 *.html
+
 
 #field-measurements
 field-measurements/*.csv

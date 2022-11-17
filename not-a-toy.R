@@ -1,4 +1,5 @@
 # Analysis code for the SERC/UMD 13CH4-labeling incubation
+# Adapted from von Fischer and Hedin 2002, 10.1029/2001GB001448
 # Kendalynn Morris
 # October 2022
 
@@ -52,8 +53,7 @@ lapply(files, read_file) %>%
 FRAC_K <- 0.98 # 13C consumption as a fraction of 12C consumption (alpha in Eq. 11)
 FRAC_P <- 0.01 # 13C production as a fraction of 12C production
 AP_P <- FRAC_P / (1 + FRAC_P) * 100 # 13C atom percent of total methane production
-VOL_ML <- 130  # headspace volume of jar
-# don't think we need these anymore
+VOL_ML <- 130
 OLD_METHOD <- FALSE
 
 # ----- Unit conversion -----
@@ -73,23 +73,20 @@ incdat_raw %>%
            sdC = `HR 12CH4 Std`, sdD = `HR Delta iCH4 Std`) ->
     incdat
 
-#incdat <- filter(incdat, id %in% c("2", "4", "31", "71", "87"))
-# "52"
 
-#for equations 12,13,&14
-#need standard deviation of the 5 timepoints -> sd_obs
-#and standard deviation of the analytical precision (instrument stdev) for those obs
+#now we generate sample specific scaling factors for feeding into the cost function
+#see vFH2002 Eqs. 12, 13, & 14
+#need standard deviation of isotopic and mass across all measurements for each sample -> sd_obs
+#and standard deviation of the analytical precision (instrument stdev) for those obsrvations
 #coined here as sd_inst
 incdat %>% 
   group_by(id) %>% 
   mutate(sd_obsDelta = sd(`HR Delta iCH4 Mean`),
-         sd_instDelta = sd(sdD),
+         sd_instDelta = sd(sdD), #sdD is the instrument stdev for the delta measurement
          sd_obsMass = sd(`HR 12CH4 Mean`),
-         sd_instMass = sd(sdC)) -> incdat
-
-Nd <- incdat$sd_obsDelta/incdat$sd_instDelta
-Nm <- incdat$sd_obsMass/incdat$sd_instMass
-
+         sd_instMass = sd(sdC), #sdC is the instrument stdev for the 12C mass measurement
+         Nd = sd_obsDelta/sd_instDelta,
+         Nm = sd_obsMass/sd_instMass) -> incdat
 
 # ----- Data visualization -----
 
@@ -115,7 +112,7 @@ ggsave("./outputs/over_time.png", width = 8, height = 5)
 # k: first-order rate constant for methane consumption, 1/unit time
 # Returns a data frame with mt, nt, and AP (atom percent) predictions for each t
 ap_prediction <- function(time, m0, n0, P, k) {
-    # Combined, this is Eq. 11 from von Fischer and Hedin 2002, 10.1029/2001GB001448
+    # Combined, this is Eq. 11
     # ...except modified for what I think are two mistakes
     # 1. Added *100 so that the left part is correctly a percent (per their Appendix A)
     # 2. We've just predicted nt and mt, so now doesn't APt flow directly from them?!?
@@ -143,8 +140,10 @@ ap_prediction <- function(time, m0, n0, P, k) {
 # time: vector of time values, numeric (e.g. days); first should be zero
 # m: observed total methane values, same length as time
 # n: observed labeled methane values, same length as time
+# Nd: normalization factor for delta values, see Eq. 12
+# Nm: normalization factor for methane mass, see Eq. 13
 # Returns the sum of squares between predicted and observed m and AP
-cost_function <- function(params, time, m, n, sdD, sdC) {
+cost_function <- function(params, time, m, n, Nd, Nm) {
     #    message(params["P"], ",", params["k"])
     pred <- ap_prediction(time = time,
                           m0 = m[1],
@@ -168,8 +167,9 @@ cost_function <- function(params, time, m, n, sdD, sdC) {
       sum((c(mt_r, nt_r) - c(m_r, n_r)) ^ 2)
       
     } else {
+      #vFH eq 14
       sum((abs(m - pred$mt)/sd(m))*Nm + (abs(n - pred$nt)/sd(n))*Nd)
-      #the weight values from eqs 13&14 will go above
+      #Nm and Nd derive from eq 12 & 13
     }
 }
 
@@ -185,7 +185,7 @@ for(i in unique(incdat$id)) {
     incdat %>%
         filter(id == i) %>%
         select(id, round, vol, time_days, cal12CH4ml, cal13CH4ml,
-               AP_obs, sdD, sdC) ->
+               AP_obs, Nd, Nm) ->
         dat
 
     # Estimate starting k by slope of 13C.  This follows para. 21:
@@ -207,7 +207,7 @@ for(i in unique(incdat$id)) {
     message("k0 = ", k0)
 
     # Let optim() try different values for P and k until it finds best fit to data
-    result <- optim(par = c("P" = 10, "k"= k0),
+    result <- optim(par = c("P" = 0.001, "k"= k0),
                     fn = cost_function,
                     # Constrain the optimizer so it can't produce <0 values
                     # for P, nor values <=0 for k
@@ -219,8 +219,8 @@ for(i in unique(incdat$id)) {
                     time = dat$time_days,
                     m = dat$cal12CH4ml + dat$cal13CH4ml,
                     n = dat$cal13CH4ml,
-                    sdC = dat$sdC,
-                    sdD = dat$sdD)
+                    Nd = dat$Nd,
+                    Nm = dat$Nm)
 
     message("Optimizer solution:")
     print(result)
@@ -249,7 +249,7 @@ for(i in unique(incdat$id)) {
     change_time <- c(0, diff(dat$time_days))
     dat$Pt <- P * change_time
     dat$Ct <- (-change_methane + (P * change_time)) / change_time
-    dat$style <- if_else(OLD_METHOD == TRUE, "old", "new")
+    dat$style <- if_else(OLD_METHOD, "old", "new")
 
     incdat_out[[i]] <- dat
 }
@@ -308,3 +308,4 @@ ggsave("./outputs/ap_fits.png", width = 8, height = 6)
 print(pk_results)
 
 message("All done.")
+
