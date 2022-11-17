@@ -1,4 +1,5 @@
 # Analysis code for the SERC/UMD 13CH4-labeling incubation
+# Adapted from von Fischer and Hedin 2002, 10.1029/2001GB001448
 # Kendalynn Morris
 # October 2022
 
@@ -52,7 +53,8 @@ lapply(files, read_file) %>%
 FRAC_K <- 0.98 # 13C consumption as a fraction of 12C consumption (alpha in Eq. 11)
 FRAC_P <- 0.01 # 13C production as a fraction of 12C production
 AP_P <- FRAC_P / (1 + FRAC_P) * 100 # 13C atom percent of total methane production
-VOL_ML <- 130  # headspace volume of jar
+VOL_ML <- 130
+OLD_METHOD <- FALSE
 
 # ----- Unit conversion -----
 
@@ -67,11 +69,24 @@ incdat_raw %>%
            cal12CH4ml = if_else(round != "T0", cal12CH4ml * 1.083, cal12CH4ml),
            cal13CH4ml = if_else(round != "T0", cal13CH4ml * 1.083, cal13CH4ml),
            # calculate atom percent (AP) of 13C methane in sample over time
-           AP_obs = cal13CH4ml / (cal12CH4ml + cal13CH4ml) * 100) ->
+           AP_obs = cal13CH4ml / (cal12CH4ml + cal13CH4ml) * 100,
+           sdC = `HR 12CH4 Std`, sdD = `HR Delta iCH4 Std`) ->
     incdat
 
-#incdat <- filter(incdat, id %in% c("2", "4", "52", "71"))
-#, "52", "4", "71"
+
+#now we generate sample specific scaling factors for feeding into the cost function
+#see vFH2002 Eqs. 12, 13, & 14
+#need standard deviation of isotopic and mass across all measurements for each sample -> sd_obs
+#and standard deviation of the analytical precision (instrument stdev) for those obsrvations
+#coined here as sd_inst
+incdat %>% 
+  group_by(id) %>% 
+  mutate(sd_obsDelta = sd(`HR Delta iCH4 Mean`),
+         sd_instDelta = sd(sdD), #sdD is the instrument stdev for the delta measurement
+         sd_obsMass = sd(`HR 12CH4 Mean`),
+         sd_instMass = sd(sdC), #sdC is the instrument stdev for the 12C mass measurement
+         Nd = sd_obsDelta/sd_instDelta,
+         Nm = sd_obsMass/sd_instMass) -> incdat
 
 # ----- Data visualization -----
 
@@ -97,7 +112,7 @@ ggsave("./outputs/over_time.png", width = 8, height = 5)
 # k: first-order rate constant for methane consumption, 1/unit time
 # Returns a data frame with mt, nt, and AP (atom percent) predictions for each t
 ap_prediction <- function(time, m0, n0, P, k) {
-    # Combined, this is Eq. 11 from von Fischer and Hedin 2002, 10.1029/2001GB001448
+    # Combined, this is Eq. 11
     # ...except modified for what I think are two mistakes
     # 1. Added *100 so that the left part is correctly a percent (per their Appendix A)
     # 2. We've just predicted nt and mt, so now doesn't APt flow directly from them?!?
@@ -125,27 +140,37 @@ ap_prediction <- function(time, m0, n0, P, k) {
 # time: vector of time values, numeric (e.g. days); first should be zero
 # m: observed total methane values, same length as time
 # n: observed labeled methane values, same length as time
+# Nd: normalization factor for delta values, see Eq. 12
+# Nm: normalization factor for methane mass, see Eq. 13
 # Returns the sum of squares between predicted and observed m and AP
-cost_function <- function(params, time, m, n) {
+cost_function <- function(params, time, m, n, Nd, Nm) {
     #    message(params["P"], ",", params["k"])
     pred <- ap_prediction(time = time,
                           m0 = m[1],
                           n0 = n[1],
                           P = params["P"],
-                          k = params["k"])
+                          k = params["k"]
+                          )
 
-    # m and n are on different scales, so we need to scale them
-    # in order to combine for a single sum of squares calculation
-    # First find overall ranges...
-    m_range <- range(c(pred$mt, m, na.rm = TRUE))
-    n_range <- range(c(pred$nt, n, na.rm = TRUE))
-    # ...and then rescale
-    mt_r <- rescale(pred$mt, from = m_range)
-    nt_r <- rescale(pred$nt, from = n_range)
-    m_r <- rescale(m, from = m_range)
-    n_r <- rescale(n, from = n_range)
-    # Return overall sum of squares to the optimizer
-    sum((c(mt_r, nt_r) - c(m_r, n_r)) ^ 2)
+    if(OLD_METHOD) {
+      # m and n are on different scales, so we need to scale them
+      # in order to combine for a single sum of squares calculation
+      # First find overall ranges...
+      m_range <- range(c(pred$mt, m, na.rm = TRUE))
+      n_range <- range(c(pred$nt, n, na.rm = TRUE))
+      # ...and then rescale
+      mt_r <- rescale(pred$mt, from = m_range)
+      nt_r <- rescale(pred$nt, from = n_range)
+      m_r <- rescale(m, from = m_range)
+      n_r <- rescale(n, from = n_range)
+      # Return overall sum of squares to the optimizer
+      sum((c(mt_r, nt_r) - c(m_r, n_r)) ^ 2)
+      
+    } else {
+      #vFH eq 14
+      sum((abs(m - pred$mt)/sd(m))*Nm + (abs(n - pred$nt)/sd(n))*Nd)
+      #Nm and Nd derive from eq 12 & 13
+    }
 }
 
 
@@ -159,7 +184,8 @@ for(i in unique(incdat$id)) {
     # Isolate this sample's data
     incdat %>%
         filter(id == i) %>%
-        select(id, round, vol, time_days, cal12CH4ml, cal13CH4ml, AP_obs) ->
+        select(id, round, vol, time_days, cal12CH4ml, cal13CH4ml,
+               AP_obs, Nd, Nm) ->
         dat
 
     # Estimate starting k by slope of 13C.  This follows para. 21:
@@ -181,7 +207,7 @@ for(i in unique(incdat$id)) {
     message("k0 = ", k0)
 
     # Let optim() try different values for P and k until it finds best fit to data
-    result <- optim(par = c("P" = 10, "k"= k0),
+    result <- optim(par = c("P" = 0.001, "k"= k0),
                     fn = cost_function,
                     # Constrain the optimizer so it can't produce <0 values
                     # for P, nor values <=0 for k
@@ -192,7 +218,9 @@ for(i in unique(incdat$id)) {
                     # "..." that the optimizer will pass to cost_function:
                     time = dat$time_days,
                     m = dat$cal12CH4ml + dat$cal13CH4ml,
-                    n = dat$cal13CH4ml)
+                    n = dat$cal13CH4ml,
+                    Nd = dat$Nd,
+                    Nm = dat$Nm)
 
     message("Optimizer solution:")
     print(result)
@@ -221,6 +249,7 @@ for(i in unique(incdat$id)) {
     change_time <- c(0, diff(dat$time_days))
     dat$Pt <- P * change_time
     dat$Ct <- (-change_methane + (P * change_time)) / change_time
+    dat$style <- if_else(OLD_METHOD, "old", "new")
 
     incdat_out[[i]] <- dat
 }
@@ -244,32 +273,34 @@ performance_summary %>%
 
 message("Done with optimization")
 
+incdat_new <- incdat_out
+comparison <- bind_rows(incdat_old, incdat_new)
 
 # ----- Plot AP results -----
 
-ap_pred <- ggplot(incdat_out, aes(time_days)) +
+ap_pred <- ggplot(comparison, aes(time_days)) +
     geom_point(aes(y = AP_obs)) +
-    geom_line(aes(y = AP_pred, color = ap_cor), linetype = 2, size = 1) +
+    geom_line(aes(y = AP_pred, color = ap_cor, linetype = style), size = 1) +
     facet_wrap(~as.numeric(id), scales = "free")
 print(ap_pred)
-ggsave("./outputs/ap_pred.png", width = 8, height = 6)
+ggsave("./outputs/ap_predCOMPARE.png", width = 8, height = 6)
 
 # ----- Plot total methane results -----
 
-m_pred <- ggplot(incdat_out, aes(time_days)) +
+m_pred <- ggplot(comparison, aes(time_days)) +
     geom_point(aes(y = cal12CH4ml + cal13CH4ml)) +
-    geom_line(aes(y = mt, color = m_cor), linetype = 2, size = 1) +
+    geom_line(aes(y = mt, color = m_cor, linetype = style), size = 1) +
     facet_wrap(~as.numeric(id), scales = "free")
 print(m_pred)
-ggsave("./outputs/m_pred.png", width = 8, height = 6)
+ggsave("./outputs/m_predCOMPARE.png", width = 8, height = 6)
 
 # ----- Visualize data, coloring by fit -----
 
-incdat_out %>%
+comparison %>%
     pivot_longer(cols = c(cal12CH4ml, cal13CH4ml, AP_obs)) %>%
     ggplot(aes(round, value, group = id, color = ap_cor)) +
     geom_point() + geom_line() +
-    facet_wrap( ~ name, scales = "free") ->
+    facet_wrap(style ~ name, scales = "free") ->
     ap_fits
 print(ap_fits)
 ggsave("./outputs/ap_fits.png", width = 8, height = 6)
@@ -277,3 +308,4 @@ ggsave("./outputs/ap_fits.png", width = 8, height = 6)
 print(pk_results)
 
 message("All done.")
+
