@@ -308,12 +308,15 @@ incdat_out %>%
 incdat_out %>%
     filter(id %in% c("2","31","52","61","64","71"),
            round == "T1") %>%
-    select(id, P, k, Pt, Ct, AP_obs, AP_pred) %>%
+    select(id, P, k, Ct, AP_pred, AP_obs) %>%
     mutate(across(where(is.numeric), ~ num(., digits = 2))) -> results
 
 kable(results,
-      caption = "<center><strong>What the heck are the units here?</strong></center>",
+      caption = "<center><strong>Gross Rates</strong></center>",
       escape = FALSE,
+      col.names = NULL,
+      align = "c",
       format = "html") %>%
-    kable_styling(font_size = 12) 
+    kable_styling(font_size = 12) %>% 
+  add_header_above(c("Sample ID", "P mL/day", "k 1/day", "C mL/day", "Atom% Predicted", "Atom% Observed"))
 ```
