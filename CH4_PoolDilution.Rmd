@@ -253,8 +253,8 @@ incdat_out %>%
                        values = 20) +
     scale_color_discrete(guide = "none") +
     facet_wrap(~as.numeric(id), scales = "free") +
-    xlab("\n Timestep") + ylab("(13C-CH4/Total CH4) x 100 \n") +
-    ggtitle("Atom% 13C") + theme(legend.position = "bottom")
+    xlab("\n Timestep \n") + ylab("\n (13C-CH4/Total CH4) x 100 \n") +
+    ggtitle("\n Atom% 13C \n") + theme(legend.position = "bottom")
 
 
 # ----- Plot total methane results -----
@@ -269,8 +269,8 @@ incdat_out %>%
                        values = 20) +
     scale_color_discrete(guide = "none") +
     facet_wrap(~as.numeric(id), scales = "free") +
-    xlab("\n Timestep") + ylab("Volume (mL) \n") +
-    ggtitle("Total Methane") + theme(legend.position = "bottom")
+    xlab("\n Timestep \n") + ylab("\n Volume (mL) \n") +
+    ggtitle("\n Total Methane \n") + theme(legend.position = "bottom")
 ```
 
 
