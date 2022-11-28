@@ -77,7 +77,7 @@ fit_models <- function(incdat) {
 
 ## How sensitive are we to removing first/last data points?
 
-```{r}
+```{r, include=FALSE}
 results <- fit_models(incdat)
 results$which <- "Default"
 
@@ -95,16 +95,28 @@ incdat %>%
   fit_models() ->
   results_drop_last
 results_drop_last$which <- "Drop last"
+```
 
+
+```{r, echo=FALSE}
 bind_rows(results_drop_first, results_drop_last) %>% 
   left_join(select(results, id, P_default = P, k_default = k), by = "id") %>% 
-  mutate(P_change = (P - P_default) / P, k_change = (k - k_default) / k) %>% 
-  pivot_longer(cols = c("P_change", "k_change")) ->
+  mutate(P_change = 100 * (P - P_default) / P, 
+         k_change = 100 * (k - k_default) / k) ->
   results_all
 
-ggplot(results_all, aes(value*100, id, color = name)) + 
+results_all %>% 
+  pivot_longer(cols = c("P_change", "k_change")) %>% 
+  ggplot(aes(value, id, color = name)) + 
   geom_point() + xlab("Change (%)") + 
   facet_wrap(~which)
+
+results_all %>% 
+  filter(!is.infinite(P_change)) %>% 
+  group_by(which) %>% 
+  summarise(P_change_percent = round(median(P_change, na.rm = TRUE), 1),
+            k_change_percent = round(median(k_change, na.rm = TRUE), 1)) %>% 
+  knitr::kable()
 ```
 
 
