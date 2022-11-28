@@ -1,0 +1,118 @@
+---
+title: "Sensitivity"
+author: "BBL"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+# Load packages
+library(PoolDilutionR)
+library(dplyr)
+library(ggplot2)
+library(ggpmisc)
+library(ggh4x)
+library(lubridate)
+library(readr)
+library(scales)
+library(tibble)
+library(tidyr)
+library(kableExtra)
+
+theme_set(theme_minimal() + theme(text = element_text(size = 11)))
+
+if(!file.exists("outputs/incdat.csv")) {
+  stop("You need to run the main RMarkdown file first")
+}
+incdat <- read_csv("outputs/incdat.csv")
+```
+
+# Model-fitting sensitivity
+
+```{r Set Constants, echo=FALSE}
+FRAC_K <- 0.98 # 13C consumption as a fraction of 12C consumption (alpha in Eq. 11)
+FRAC_P <- 0.01 # 13C production as a fraction of 12C production
+AP_P <- FRAC_P / (1 + FRAC_P) * 100 # 13C atom percent of total methane production
+VOL_ML <- 130  # total volume of jar
+```
+
+
+
+
+```{r Do the thing!, include=FALSE}
+fit_models <- function(incdat) {
+  pk_results <- list()
+  
+  for(i in unique(incdat$id)) {
+    message("------------------- ", i)
+    # Isolate this sample's data
+    incdat %>%
+      filter(id == i) %>%
+      select(id, round, vol, time_days,
+             cal12CH4ml, cal13CH4ml,
+             AP_obs, Nm, Nd) ->
+      dat
+    
+    # Let optim() try different values for P and k until it finds best fit to data
+    params <- list("P0" = 10) # k0 is auto-estimated
+    result <- optimize_pk(time = dat$time_days,
+                          m = dat$cal12CH4ml + dat$cal13CH4ml,
+                          n = dat$cal13CH4ml,
+                          Nm = dat$Nm,
+                          Nd = dat$Nd,
+                          params = params)
+    
+    P <- result$par["P"]
+    pk_results[[i]] <- tibble(P = P,
+                              k = result$par["k"],
+                              k0 = result$initial_par["k0"],
+                              convergence = result$convergence,
+                              message = result$message)
+  }
+  bind_rows(pk_results, .id = "id")
+}
+
+```
+
+## How sensitive are we to removing first/last data points?
+
+```{r}
+results <- fit_models(incdat)
+results$which <- "Default"
+
+incdat %>% 
+  group_by(id) %>% 
+  slice(-1) %>% 
+  mutate(time_days = time_days - min(time_days)) %>% 
+  fit_models() ->
+  results_drop_first
+results_drop_first$which <- "Drop first"
+
+incdat %>% 
+  group_by(id) %>% 
+  slice_tail(n = -1) %>% 
+  mutate(time_days = time_days - min(time_days)) %>% 
+  fit_models() ->
+  results_drop_first
+results_drop_first$which <- "Drop first"
+
+incdat %>% 
+  group_by(id) %>% 
+  slice_head(n = -1) %>% 
+  fit_models() ->
+  results_drop_last
+results_drop_last$which <- "Drop last"
+
+results_all <- bind_rows(results, results_drop_first, results_drop_last)
+```
+
+
+## How sensitive are results to FRAC_P and FRAC_K?
+
+# Reproducibility
+
+```{r, echo=FALSE}
+sessionInfo()
+```
+
