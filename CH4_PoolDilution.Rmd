@@ -169,24 +169,9 @@ for(i in unique(incdat$id)) {
                cal12CH4ml, cal13CH4ml,
                AP_obs, Nm, Nd) ->
         dat
-    # Estimate starting k by slope of 13C following para. 21:
-    m <- lm(log(cal13CH4ml) ~ time_days, data = dat)
-    m_slope <- unname(m$coefficients["time_days"])
-    message("m_slope = ", m_slope)
-    # Generally, this slope is negative (net 13CH4 consumption)
-    # If not, our k0 estimate below won't work
-    # For now, just ensure it's positive; there's probably a more sophisticated
-    # way to estimate k0 in this case but save that for the future
-    m_slope <- -abs(m_slope)
-    
-    # "...multiplied by 1/a to correct for fractionation against the
-    # labeled methane."
-    # BBL: this should be "1/-a" (see equation 8)
-    k0 = m_slope / -FRAC_K
-    message("k0 = ", k0)
     
     # Let optim() try different values for P and k until it finds best fit to data
-    params <- list("P0" = 10, "k0" = k0)
+    params <- list("P0" = 10) # k0 is auto-estimated
     result <- optimize_pk(time = dat$time_days,
                           m = dat$cal12CH4ml + dat$cal13CH4ml,
                           n = dat$cal13CH4ml,
@@ -199,7 +184,7 @@ for(i in unique(incdat$id)) {
     P <- result$par["P"]
     pk_results[[i]] <- tibble(P = P,
                               k = result$par["k"],
-                              k0 = k0,
+                              k0 = result$initial_par["k0"],
                               convergence = result$convergence,
                               message = result$message)
     
@@ -268,8 +253,8 @@ incdat_out %>%
                        values = 20) +
     scale_color_discrete(guide = "none") +
     facet_wrap(~as.numeric(id), scales = "free") +
-    xlab("\n Timestep") + ylab("(13C-CH4/Total CH4) x 100 \n") +
-    ggtitle("Atom% 13C") + theme(legend.position = "bottom")
+    xlab("\n Timestep \n") + ylab("\n (13C-CH4/Total CH4) x 100 \n") +
+    ggtitle("\n Atom% 13C \n") + theme(legend.position = "bottom")
 
 
 # ----- Plot total methane results -----
@@ -284,8 +269,8 @@ incdat_out %>%
                        values = 20) +
     scale_color_discrete(guide = "none") +
     facet_wrap(~as.numeric(id), scales = "free") +
-    xlab("\n Timestep") + ylab("Volume (mL) \n") +
-    ggtitle("Total Methane") + theme(legend.position = "bottom")
+    xlab("\n Timestep \n") + ylab("\n Volume (mL) \n") +
+    ggtitle("\n Total Methane \n") + theme(legend.position = "bottom")
 ```
 
 
