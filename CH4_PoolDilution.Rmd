@@ -7,7 +7,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 
-#load packages
+# Load packages
 library(PoolDilutionR)
 library(dplyr)
 library(ggplot2)
@@ -91,11 +91,11 @@ incdat_raw %>%
            sdC = `HR 12CH4 Std`, sdD = `HR Delta iCH4 Std`) ->
     incdat
 
-#now we generate sample specific scaling factors for feeding into a cost function
-#see vFH2002 Eqs. 12, 13, & 14
-#need standard deviation of isotopes and mass across all measurements for each sample -> sd_obs
-#and standard deviation of the analytical precision aka
-#instrument stdev for those observations -> sd_inst
+# Now we generate sample specific scaling factors for feeding into a cost function
+# See vFH2002 Eqs. 12, 13, & 14
+# Need standard deviation of isotopes and mass across all measurements 
+# for each sample -> sd_obs, and standard deviation of the analytical precision 
+# aka instrument stdev for those observations -> sd_inst
 incdat %>% 
     group_by(id) %>% 
     mutate(sd_obsDelta = sd(`HR Delta iCH4 Mean`),
@@ -106,6 +106,9 @@ incdat %>%
            #sdC is the instrument stdev for the 12C mass measurement
            Nd = sd_obsDelta/sd_instDelta,
            Nm = sd_obsMass/sd_instMass) -> incdat
+
+# 'incdat' is our primary dataset; save for subsequent use
+write.csv(incdat, "outputs/incdat.csv")
 ```
 
 #### Input Data
@@ -331,3 +334,10 @@ kable(results,
     kable_styling(font_size = 12) %>% 
   add_header_above(c("Sample ID", "P mL/day", "k 1/day", "C mL/day", "Atom% Predicted", "Atom% Observed"))
 ```
+
+# Reproducibility
+
+```{r, echo=FALSE}
+sessionInfo()
+```
+
