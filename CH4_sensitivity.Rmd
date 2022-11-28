@@ -83,14 +83,6 @@ results$which <- "Default"
 
 incdat %>% 
   group_by(id) %>% 
-  slice(-1) %>% 
-  mutate(time_days = time_days - min(time_days)) %>% 
-  fit_models() ->
-  results_drop_first
-results_drop_first$which <- "Drop first"
-
-incdat %>% 
-  group_by(id) %>% 
   slice_tail(n = -1) %>% 
   mutate(time_days = time_days - min(time_days)) %>% 
   fit_models() ->
@@ -104,7 +96,15 @@ incdat %>%
   results_drop_last
 results_drop_last$which <- "Drop last"
 
-results_all <- bind_rows(results, results_drop_first, results_drop_last)
+bind_rows(results_drop_first, results_drop_last) %>% 
+  left_join(select(results, id, P_default = P, k_default = k), by = "id") %>% 
+  mutate(P_change = (P - P_default) / P, k_change = (k - k_default) / k) %>% 
+  pivot_longer(cols = c("P_change", "k_change")) ->
+  results_all
+
+ggplot(results_all, aes(value*100, id, color = name)) + 
+  geom_point() + xlab("Change (%)") + 
+  facet_wrap(~which)
 ```
 
 
