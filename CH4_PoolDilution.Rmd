@@ -318,7 +318,7 @@ incdat_out %>%
 incdat_out %>%
     filter(id %in% c("2","31","52","61","64","71"),
            round == "T1") %>%
-    select(id, P, k, Ct, AP_pred, AP_obs) %>%
+    select(id, Pt, k, Ct, AP_pred, AP_obs) %>%
     mutate(across(where(is.numeric), ~ num(., digits = 2))) -> results
 
 kable(results,
