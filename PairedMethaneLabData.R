@@ -6,7 +6,7 @@
 # September 2022
 # Kendalynn A. Morris
 
-# will not run without products of not-a-toy
+# will not run without products of CH4_PoolDilution
 
 library(car)
 library(dplyr)
@@ -56,14 +56,15 @@ labDat <- merge(smDat, picDat, by = "id")
 labDat$mass <- labDat$jdry - labDat$jempty
 labDat$sm <- (labDat$jfresh - labDat$jdry)/labDat$mass
 
-#select columns from not-a-toy output
+#select columns from CH4_PoolDilution output
 #name of data frame might change!
 incdat_out %>%
-    select(-vol) -> incdat_join
+    select(-c(vol, convergence, message)) -> incdat_join
 
 #rename columns,
 #correct for 50% dilution of injected sample volume
-#should std's be adjusted???
+#should std's be adjusted??? probably
+#check equations in analytical chemistry textbook
 labDat %>%
     mutate(Mppm = `HR 12CH4 Mean` * 2,
            Mstd = `HR 12CH4 Std`,
@@ -83,16 +84,28 @@ labDat %>%
            -`12CO2 Mean`, -`12CO2 Std`,
            -`13CO2 Mean`, -`13CO2 Std`,
            -`Delta 13CO2 Mean`, -`Delta 13CO2 Std`,
-           -`HR Delta iCH4 Mean`, -`HR Delta iCH4 Std`) %>%
+           -`HR Delta iCH4 Mean`, -`HR Delta iCH4 Std`,
+           -order) %>%
         left_join(incdat_join, by = c("id", "round")) %>%
     select(order(colnames(.))) %>%
-    select(id, round, order, Location, Origin,
-           mass, sm, Pt, Ct, everything()) -> data
+    arrange(id, round) %>%
+    select(id, round, Location, Origin,
+           mass, sm, Pt, Ct, everything()) %>%
+    group_by(id) %>% mutate(change_time = c(0, diff(time_days))) %>%
+    ungroup() -> data
 
-#calculate umol of CH4 per g dry soil per day for Production
-data$umolPg <- (data$Pt * 0.0446)/data$mass
-#calculate umol of CH4 per g dry soil per day for Consumption
-data$umolCg <- (data$Ct * 0.0446)/data$mass
+#ml to umols, n = (RT/PV)*10^6
+#R = 82.0574 mL * atm/K*mol
+#T = 297.15 K, estimated lab temp
+#P = 1 atm
+#V = Pt or Ct
+
+data$umolP <- (data$Pt/(82.0574*297.15)) * 10^6
+data$umolC <- (data$Ct/(82.0574*297.15)) * 10^6
+
+#convert to rate per g dry soil per day
+data$P_rate <- (data$umolP/data$time_days)/data$mass
+data$C_rate <- (data$umolC/data$time_days)/data$mass
 
 #read in field flux data for July 27th and 29th
 #the two days when soil was collected for incubations
