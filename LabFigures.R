@@ -23,7 +23,7 @@ labellies <- c('g_low' = "lowland",
                'upstream' = "upstream")
 
 data <- read_csv("PairedData.csv",
-                 col_types = "dcccccdddddddddddddddddddddddddddcccdddddc")
+                 col_types = "dccccdddddddddddddddddddddddddddddddddddcdcdddddc")
 
 
 #calculate methane totals and net changes
@@ -70,48 +70,15 @@ data %>%
            Field_time = mdy_hm(f_time, tz = "UTC")) %>%
     select(-l_time, -f_time) -> allData
 
-#Does error, sample run order, sample run day, or soil moisture explain poor fits?
 
-#AP fit vs methane delta error
-ggplot(data = allData,
-       aes(round, delMstd, color = ap_cor)) +
-    geom_jitter(aes(shape = order), size = 3) +
-    ylab("delta error") + xlab("time")
-#no
-
-#moisture vs methane delta error
-ggplot(data = allData,
-       aes(day(Lab_time), sm, color = ap_cor)) +
-    geom_jitter(aes(shape = Origin), size = 3) +
-    scale_shape_discrete(labels = Olabs) +
-    ylab("soil moisture") + xlab("sample run day")
-#no
-
-#the only thing that even comes close is the final delta
-#and final concentration
-#samples with bad fits have high deltas
-#and relatively high concentrations
-
-#final concentration and delta value
-ggplot(data = allData[allData$id != 52,],
-       aes(final, dCH4_f, color = ap_cor)) +
-    geom_jitter(aes(shape = Origin), size = 3) +
-    scale_shape_discrete(labels = Olabs) +
-    ylab("final delta") + xlab("final concentraion")
-
-
-
-#scaling factor
-size_range <- range(allData$umolPg + 0.0075)/max(allData$umolPg + 0.0075) * 6
 
 #gross consumption vs soil moisture
 #superscripted minus sign is actually as small hyphen
-ggplot(data = na.omit(allData), aes(sm, umolCg)) +
-    geom_jitter(aes(color = Location, size = (umolPg), shape = Location)) +
+ggplot(data = na.omit(allData), aes(sm, C_rate)) +
+    geom_jitter(aes(color = Location, size = (P_rate), shape = Location)) +
     scale_shape_discrete(labels = c("lowland", "upland")) +
     scale_color_discrete(labels = c("lowland", "upland")) +
-    scale_size_continuous("Gross Production",
-                          range = size_range) +
+    scale_size_continuous("Gross Production") +
     labs(x= "soil water content
        (H\u2082O * g\uFE63\u00b9 dry soil)",
          y= "Gross Consumption
@@ -120,7 +87,7 @@ ggplot(data = na.omit(allData), aes(sm, umolCg)) +
     theme(text = element_text(size = 18))
 
 #gross production vs soil moisture
-ggplot(data = allData[allData$round == "T1",], aes(sm, umolPg)) +
+ggplot(data = allData[allData$round == "T1",], aes(sm, P_rate)) +
   geom_point(aes(color = Origin), size = 3) +
   scale_color_discrete(labels = Olabs) +
   geom_smooth(method = lm, formula = y ~ x, se = FALSE) +
@@ -130,7 +97,7 @@ ggplot(data = allData[allData$round == "T1",], aes(sm, umolPg)) +
                                  sep = "~~~")))
 
 #initial gross consumption vs soil moisture
-ggplot(data = allData[allData$round == "T1",], aes(sm, umolCg)) +
+ggplot(data = allData[allData$round == "T1",], aes(sm, C_rate)) +
     geom_point(aes(color = Origin), size = 3) +
     scale_color_discrete(labels = Olabs) +
     geom_smooth(method = lm, formula = y ~ x, se = FALSE) +
@@ -141,7 +108,7 @@ ggplot(data = allData[allData$round == "T1",], aes(sm, umolCg)) +
 
 #gross consumption vs gross production
 #superscripted minus sign is actually as small hyphen
-ggplot(data = allData, aes(umolCg, umolPg), shape = Location) +
+ggplot(data = allData, aes(C_rate, P_rate), shape = Location) +
     geom_jitter(aes(color = sm), size = 5) +
     scale_shape_discrete(labels = c("lowland", "upland")) +
     scale_color_distiller("H\u2082O * g\uFE63\u00b9 dry soil") +
@@ -173,7 +140,7 @@ ggplot(data = allData[allData$id != 52,],
 #drop redundant rows from long form data
 allData %>%
     select(Location, Origin, id,
-           umolCg, umolPg, sm,
+           C_rate, P_rate, sm,
            mass, FCH4, dCH4_f,
            dCH4_i, net) %>%
     unique() -> graph
@@ -188,7 +155,7 @@ ggplot(graph[graph$id != 52,],
 
 #summary of production
 ggplot(graph[graph$id != 52,],
-       aes(Location, umolPg, fill = Origin)) +
+       aes(Location, P_rate, fill = Origin)) +
     scale_x_discrete(labels = c("lowland",
                                 "upland")) +
     scale_fill_discrete(labels = Olabs) +
@@ -235,5 +202,5 @@ ggplot(data = allData,
 #comparing field and lab flux
 #needs unit conversion!
 ggplot(data = allData,
-       aes(FCH4, umolPg, color = id)) +
+       aes(FCH4, P_rate, color = id)) +
     geom_point(size = 3)
