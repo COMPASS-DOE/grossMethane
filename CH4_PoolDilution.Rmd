@@ -216,17 +216,16 @@ for(i in unique(incdat$id)) {
     })
     all_predictions[[i]] <- bind_rows(all_preds)
 
-    # Calculate implied consumption (ml/day) based on predictions
-    # Ct = (P*time - ([CH4t] - [CH4t-1]))/time
-    # or expressed in the notation of Equation 4: dm/dt = P - C
-    # so C = P - dm/dt
-    # (could also just use equation 2, but this is a good check on things)
+    # Calculate implied consumption (ml) based on predictions
+    # Equation 4: dm/dt = P - C, so C = P - dm/dt
     total_methane <- dat$cal12CH4ml + dat$cal13CH4ml
     change_methane <- c(0, diff(total_methane))
     change_time <- c(0, diff(dat$time_days))
-    dat$Pt <- P * change_time
-    dat$Ct <- (-change_methane + (P * change_time)) / change_time
-    
+    dat$Pt <- P * change_time #P is ml/day
+    #amount of methane produced at time (t) of this incubation, a volume in mL
+    dat$Ct <- dat$Pt - change_methane
+    #amount of methane consumed at time (t) of this incubation, a volume in mL
+
     incdat_out[[i]] <- dat
 }
 ```
