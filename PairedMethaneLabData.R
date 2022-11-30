@@ -126,67 +126,70 @@ data %>%
 #write.csv(dataRTA, "PairedData.csv")
 
 #preliminary analysis
-
-#are data normally distributed?
-par(mfrow = c(4,4))
-for (x in 6:32) {
-    var = names(dataRTA)[x]
-    i <- data[,x]
-    hist(i,
-         main = paste(var))
-}
-par(mfrow = c(1,1))
-#fluxes should be transformed
+dataRTA %>%
+  select(id, round,
+         Location, Origin,
+         P_rate, C_rate,
+         k, sm, delM,
+         FCH4, FCO2,
+         TA, TS, SWC) %>%
+  filter(round == "T1") -> CheckIt
 
 #fragile code here!
+#are data normally distributed?
+par(mfrow = c(4,4))
+for (x in 5:12) {
+    var = colnames(CheckIt)[x]
+    i <- CheckIt[,x]
+    hist(i, main = paste(var))
+}
 
-#first round, so not influence by time
-#nor duplicate values
-CPdat <- data[data$round == "T1",]
+#fluxes should be transformed
+
+par(mfrow = c(1,1))
 
 ###
 #production
 ###
-hist(CPdat$umolPg)
-qqnorm(CPdat$umolPg);qqline(CPdat$umolPg)
-transformTukey(CPdat$umolPg,
+hist(CheckIt$P_rate)
+qqnorm(CheckIt$P_rate);qqline(CheckIt$P_rate)
+transformTukey(CheckIt$P_rate,
                start = -10, end = 10, int = 0.01,
                plotit = TRUE, verbose = FALSE, statistic = 1)
-#lamba = 0.26
-hist((CPdat$umolPg)^0.26)
-qqnorm(CPdat$umolPg^0.26);qqline(data$CPdat^0.26)
+#lamba = 0.3
+hist((CheckIt$P_rate)^0.3)
+qqnorm(CheckIt$P_rate^0.3);qqline(CheckIt$P_rate^0.3)
 
 #P analysis
-###Looked at Origin*sm, n.s.
-#also origin and sm alone within one location
+#Origin and sm, in combination or alone or within one location
 #there is no evidence that either influences gross production
-production <- aov(umolPg^0.26 ~ sm,
-                          data = CPdat)
-Anova(production, type="III")
+#Location is significant as sole variable
+production1 <- aov(P_rate^0.3 ~ Location*Origin + sm,
+                          data = CheckIt)
+Anova(production1)
+production2 <- aov(P_rate^0.3 ~ Location,
+                   data = CheckIt)
+Anova(production2)
 par(mfrow=c(2,2))
-plot(production)
+plot(production2)
 dev.off()
 
 ###
 #consumption
 ###
-hist(CPdat$umolCg)
-qqnorm(CPdat$umolCg);qqline(CPdat$umolCg)
-transformTukey(CPdat$umolCg,
-               start = -10, end = 10, int = 0.01,
-               plotit = TRUE, verbose = FALSE, statistic = 1)
-#lamba = -0.58
-hist(-1 * (CPdat$umolCg)^-0.58)
-qqnorm(-1 * (CPdat$umolCg)^-0.58);qqline(-1 * (CPdat$umolCg)^-0.58)
+hist(CheckIt$C_rate)
+qqnorm(CheckIt$C_rate);qqline(CheckIt$C_rate)
 
 #C analysis
-###Looked at Origin*sm, n.s.
 #also origin and sm alone within one location
 #there is no evidence that either influences gross production
-consumption <- aov((-1 * (umolCg)^-0.58) ~ Location,
-               data = CPdat)
-Anova(consumption, type="III")
+consumption1 <- aov(C_rate ~ Location*Origin + sm,
+               data = CheckIt)
+Anova(consumption1)
+consumption2 <- aov(C_rate ~ sm,
+                    data = CheckIt)
+Anova(consumption2)
 par(mfrow=c(2,2))
-plot(consumption)
+plot(consumption2)
 dev.off()
 
