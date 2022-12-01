@@ -84,42 +84,60 @@ ggplot(data = na.omit(allData), aes(sm, C_rate)) +
          y= "Gross Consumption
        (\u00b5mol CH\u2084 * g\uFE63\u00b9 dry soil * d\uFE63\u00b9)") +
     guides(shape = guide_legend(override.aes = list(size = 5))) +
-    theme(text = element_text(size = 18))
+  theme_minimal(base_size = 15) +
+  theme(plot.margin = margin(t = 20, r = 20, b = 20, l = 20))
 
 #gross production vs soil moisture
-ggplot(data = allData[allData$round == "T1",], aes(sm, P_rate)) +
+ggplot(data = CheckIt[CheckIt$id != 52,], aes(sm, P_rate)) +
   geom_point(aes(color = Origin), size = 3) +
   scale_color_discrete(labels = Olabs) +
-  geom_smooth(method = lm, formula = y ~ x, se = FALSE) +
+  geom_smooth(method = lm, formula = y ~ x, se = FALSE, size = 0.5) +
+  labs(x=  "Soil Moisture
+       (g\u207B\u00b9 dry soil)",
+       y= "Gross Production
+       (\u00b5mol CH\u2084 * g\u207B\u00b9 dry soil * d\u207B\u00b9)") +
   stat_poly_eq(formula = y ~ x,
                aes(label = paste(..eq.label..,
                                  ..rr.label..,
-                                 sep = "~~~")))
+                                 sep = "~~~"))) +
+  theme_minimal(base_size = 15) +
+  theme(plot.margin = margin(t = 20, r = 20, b = 20, l = 20))
 
 #initial gross consumption vs soil moisture
-ggplot(data = allData[allData$round == "T1",], aes(sm, C_rate)) +
+ggplot(data = CheckIt, aes(sm, C_rate)) +
     geom_point(aes(color = Origin), size = 3) +
     scale_color_discrete(labels = Olabs) +
-    geom_smooth(method = lm, formula = y ~ x, se = FALSE) +
+    geom_smooth(method = lm, formula = y ~ x, se = FALSE, size = 0.5) +
+  labs(x=  "Soil Moisture
+       (g\uFE63\u00b9 dry soil)",
+       y= "Gross Consumption
+       (\u00b5mol CH\u2084 * g\uFE63\u00b9 dry soil * d\uFE63\u00b9)") +
     stat_poly_eq(formula = y ~ x,
                  aes(label = paste(..eq.label..,
                                    ..rr.label..,
-                                   sep = "~~~")))
+                                   sep = "~~~"))) +
+  theme_minimal(base_size = 15) +
+  theme(plot.margin = margin(t = 20, r = 20, b = 20, l = 20))
 
 #gross consumption vs gross production
 #superscripted minus sign is actually as small hyphen
-ggplot(data = allData, aes(C_rate, P_rate), shape = Location) +
+ggplot(data = CheckIt[CheckIt$id != 52,], aes(P_rate, C_rate), shape = Location) +
     geom_jitter(aes(color = sm), size = 5) +
     scale_shape_discrete(labels = c("lowland", "upland")) +
-    scale_color_distiller("H\u2082O * g\uFE63\u00b9 dry soil") +
-    geom_abline(slope = 1) + lims(x = c(0,0.15), y = c(0,0.15)) +
+    scale_color_distiller("g * g\uFE63\u00b9") +
+    geom_abline(slope = 1, size = 0.25, color = "red", linetype = 2) +
+    lims(x = c(0,75), y = c(0,75)) +
     geom_smooth(method = lm, formula = y ~ x, se = FALSE, size = 0.75) +
-    labs(x=  "Gross Consumption
+  stat_poly_eq(formula = y ~ x,
+               aes(label = paste(..eq.label..,
+                                 ..rr.label..,
+                                 sep = "~~~")))+
+    labs(x=  "Gross Production
        (\u00b5mol CH\u2084 * g\uFE63\u00b9 dry soil * d\uFE63\u00b9)",
-         y= "Gross Production
+         y= "Gross Consumption
        (\u00b5mol CH\u2084 * g\uFE63\u00b9 dry soil * d\uFE63\u00b9)") +
-    theme_bw() +
-    theme(text = element_text(size = 15), legend.position = "right")
+  theme_minimal(base_size = 15) +
+  theme(plot.margin = margin(t = 20, r = 20, b = 20, l = 20))
 
 
 #accumulation of methane over incubation

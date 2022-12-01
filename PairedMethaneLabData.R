@@ -127,22 +127,23 @@ data %>%
 
 #preliminary analysis
 dataRTA %>%
+  filter(round == "T1",
+         ap_cor > 0.5) %>%
   select(id, round,
          Location, Origin,
          P_rate, C_rate,
          k, sm, delM,
          FCH4, FCO2,
-         TA, TS, SWC) %>%
-  filter(round == "T1") -> CheckIt
+         TA, TS, SWC) -> CheckIt
 
 #fragile code here!
 #are data normally distributed?
-par(mfrow = c(4,4))
-for (x in 5:12) {
-    var = colnames(CheckIt)[x]
-    i <- CheckIt[,x]
-    hist(i, main = paste(var))
-}
+# par(mfrow = c(4,4))
+# for (x in 5:12) {
+#     var = colnames(CheckIt)[x]
+#     i <- CheckIt[,x]
+#     hist(i, main = paste(var))
+# }
 
 #fluxes should be transformed
 
@@ -156,19 +157,18 @@ qqnorm(CheckIt$P_rate);qqline(CheckIt$P_rate)
 transformTukey(CheckIt$P_rate,
                start = -10, end = 10, int = 0.01,
                plotit = TRUE, verbose = FALSE, statistic = 1)
-#lamba = 0.3
-hist((CheckIt$P_rate)^0.3)
-qqnorm(CheckIt$P_rate^0.3);qqline(CheckIt$P_rate^0.3)
+#lamba = -0.19
+hist(-1*CheckIt$P_rate^-0.19)
+qqnorm(-1*CheckIt$P_rate^-0.19);qqline(-1*CheckIt$P_rate^-0.19)
 
 #P analysis
-#Origin and sm, in combination or alone or within one location
-#there is no evidence that either influences gross production
-#Location is significant as sole variable
-production1 <- aov(P_rate^0.3 ~ Location*Origin + sm,
+#Location was significant as sole variable,
+#Until low ap_cor values removed :(((
+production1 <- aov(-1*P_rate^-0.19 ~ Location*Origin + sm,
                           data = CheckIt)
 Anova(production1)
-production2 <- aov(P_rate^0.3 ~ Location,
-                   data = CheckIt)
+production2 <- aov(-1*P_rate^-0.19 ~ Origin,
+                   data = CheckIt[CheckIt$Location == "g_low",])
 Anova(production2)
 par(mfrow=c(2,2))
 plot(production2)
@@ -179,17 +179,31 @@ dev.off()
 ###
 hist(CheckIt$C_rate)
 qqnorm(CheckIt$C_rate);qqline(CheckIt$C_rate)
+transformTukey(CheckIt$C_rate,
+               start = -10, end = 10, int = 0.01,
+               plotit = TRUE, verbose = FALSE, statistic = 1)
+#lamba = -0.19
+hist(-1*CheckIt$C_rate^-0.93)
+qqnorm(-1*CheckIt$C_rate^-0.93);qqline(-1*CheckIt$C_rate^-0.93)
 
 #C analysis
-#also origin and sm alone within one location
-#there is no evidence that either influences gross production
-consumption1 <- aov(C_rate ~ Location*Origin + sm,
+#there is no evidence that either O or L influences gross production
+consumption1 <- aov(-1*C_rate^-0.93 ~ Location*Origin + sm,
                data = CheckIt)
 Anova(consumption1)
-consumption2 <- aov(C_rate ~ sm,
+#but there is that soil moisture does!
+consumption2 <- aov(-1*C_rate^-0.93 ~ sm,
                     data = CheckIt)
 Anova(consumption2)
 par(mfrow=c(2,2))
 plot(consumption2)
 dev.off()
 
+#against each other
+gross_rates1 <- aov(-1*P_rate^-0.19 ~ C_rate + sm,
+                   data = CheckIt)
+Anova(gross_rates1)
+
+gross_rates1 <- aov(-1*C_rate^-0.93 ~ P_rate + sm,
+                    data = CheckIt)
+Anova(gross_rates1)
