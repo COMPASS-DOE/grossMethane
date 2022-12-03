@@ -176,7 +176,7 @@ for(i in unique(incdat$id)) {
                           n = dat$cal13CH4ml,
                           Nm = dat$Nm,
                           Nd = dat$Nd,
-                          gas = "CH4",
+                          pool = "CH4",
                           params = params)
     
     # Save progress details separately so they don't print below
@@ -198,7 +198,7 @@ for(i in unique(incdat$id)) {
                           n0 = dat$cal13CH4ml[1],
                           P = P,
                           k = result$par["k"],
-                          gas = "CH4")
+                          pool = "CH4")
     dat <- bind_cols(dat, pred)
     
     # Predict based on ALL the models that were tried
@@ -212,7 +212,7 @@ for(i in unique(incdat$id)) {
                         n0 = dat$cal13CH4ml[1],
                         P = x$P[1],
                         k = x$k[1],
-                        gas = "CH4")
+                        pool = "CH4")
         cbind(y1, y2)
     })
     all_predictions[[i]] <- bind_rows(all_preds)
