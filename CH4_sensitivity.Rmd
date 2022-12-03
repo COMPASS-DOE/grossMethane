@@ -45,7 +45,6 @@ fit_models <- function(incdat) {
   pk_results <- list()
   
   for(i in unique(incdat$id)) {
-    message("------------------- ", i)
     # Isolate this sample's data
     incdat %>%
       filter(id == i) %>%
@@ -64,20 +63,22 @@ fit_models <- function(incdat) {
                           params = params)
     
     P <- result$par["P"]
-    pk_results[[i]] <- tibble(P = P,
+    pk_results[[i]] <- tibble(id = i,
+                              P = P,
                               k = result$par["k"],
                               k0 = result$initial_par["k0"],
+                              value = result$value,
                               convergence = result$convergence,
                               message = result$message)
   }
-  bind_rows(pk_results, .id = "id")
+  bind_rows(pk_results)
 }
 
 ```
 
 ## How sensitive are we to removing first/last data points?
 
-```{r, include=FALSE}
+```{r, include=FALSE, eval=FALSE}
 results <- fit_models(incdat)
 results$which <- "Default"
 
@@ -121,6 +122,47 @@ results_all %>%
 
 
 ## How sensitive are results to FRAC_P and FRAC_K?
+
+```{r, include=FALSE}
+FRAC_K_original <- FRAC_K
+FRAC_P_original <- FRAC_P
+
+N <- 10
+set.seed(27)
+# This is crude but produces a lognormal distribution with a max
+# of ~0.999 and a minimum of 0.916
+#frac_k_values <- FRAC_K - (rlnorm(N) / 100 - 0.02)
+frac_k_values <- seq(0.9, 0.999, length.out = N)
+# Lognormal again, min = 0.0005, max = 0.064
+#frac_p_values <- FRAC_P + (rlnorm(N) / 100 - 0.01)
+frac_p_values <- seq(0.001, 0.1, length.out = N)
+
+out <- list()
+time_start <- Sys.time()
+for(i in c("2", "31", "52", "61", "64", "71")) {
+  incdat %>% filter(id == i) -> incdat_i
+  for(fk in frac_k_values) {
+    for(fp in frac_p_values) {
+      FRAC_K <- fk
+      FRAC_P <- fp
+      incdat_i %>% 
+        fit_models() %>% 
+        mutate(`Initial frac_p` = fp, `Initial frac_k` = fk) ->
+        out[[paste(i, fk, fp)]]
+    }
+  }  
+}
+print(difftime(Sys.time(), time_start))
+
+frac_pk_results <- bind_rows(out)
+
+ggplot(subset(frac_pk_results), aes(`Initial frac_p`, `Initial frac_k`)) +
+  facet_wrap(~id) + 
+  geom_tile(aes(fill = value)) + 
+  scale_fill_gradientn("Cost (fit)", trans = "log", colours = terrain.colors(5))
+```
+
+
 
 # Reproducibility
 
