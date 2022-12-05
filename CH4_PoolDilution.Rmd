@@ -64,10 +64,8 @@ lapply(files, read_file) %>%
 
 summary(incdat_raw)
 ```
+
 ```{r Set Constants, echo=FALSE}
-FRAC_K <- 0.98 # 13C consumption as a fraction of 12C consumption (alpha in Eq. 11)
-FRAC_P <- 0.01 # 13C production as a fraction of 12C production
-AP_P <- FRAC_P / (1 + FRAC_P) * 100 # 13C atom percent of total methane production
 VOL_ML <- 130  # total volume of jar
 ```
 
@@ -178,6 +176,7 @@ for(i in unique(incdat$id)) {
                           n = dat$cal13CH4ml,
                           Nm = dat$Nm,
                           Nd = dat$Nd,
+                          pool = "CH4",
                           params = params)
     
     # Save progress details separately so they don't print below
@@ -198,7 +197,8 @@ for(i in unique(incdat$id)) {
                           m0 = dat$cal12CH4ml[1] + dat$cal13CH4ml[1],
                           n0 = dat$cal13CH4ml[1],
                           P = P,
-                          k = result$par["k"])
+                          k = result$par["k"],
+                          pool = "CH4")
     dat <- bind_cols(dat, pred)
     
     # Predict based on ALL the models that were tried
@@ -211,7 +211,8 @@ for(i in unique(incdat$id)) {
                         m0 = dat$cal12CH4ml[1] + dat$cal13CH4ml[1],
                         n0 = dat$cal13CH4ml[1],
                         P = x$P[1],
-                        k = x$k[1])
+                        k = x$k[1],
+                        pool = "CH4")
         cbind(y1, y2)
     })
     all_predictions[[i]] <- bind_rows(all_preds)
