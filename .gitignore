@@ -8,7 +8,7 @@ CH4_PoolDilution.pdf
 
 *.csv
 *.html
-
+*.png
 
 #field-measurements
 field-measurements/*.csv
