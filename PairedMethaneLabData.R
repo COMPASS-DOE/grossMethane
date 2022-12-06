@@ -126,7 +126,7 @@ data %>%
 #write.csv(dataRTA, "PairedData.csv")
 
 #preliminary analysis
-dataRTA %>%
+allData %>%
   filter(round == "T1",
          ap_cor > 0.5) %>%
   select(id, round,
@@ -177,9 +177,9 @@ dev.off()
 ###
 #consumption
 ###
-hist(CheckIt$C_rate)
-qqnorm(CheckIt$C_rate);qqline(CheckIt$C_rate)
-transformTukey(CheckIt$C_rate,
+hist(CheckIt$k)
+qqnorm(CheckIt$k);qqline(CheckIt$k)
+transformTukey(CheckIt$k,
                start = -10, end = 10, int = 0.01,
                plotit = TRUE, verbose = FALSE, statistic = 1)
 #lamba = -0.19
@@ -188,11 +188,11 @@ qqnorm(-1*CheckIt$C_rate^-0.93);qqline(-1*CheckIt$C_rate^-0.93)
 
 #C analysis
 #there is no evidence that either O or L influences gross production
-consumption1 <- aov(-1*C_rate^-0.93 ~ Location*Origin + sm,
+consumption1 <- aov(k ~ Location*Origin + sm,
                data = CheckIt)
 Anova(consumption1)
 #but there is that soil moisture does!
-consumption2 <- aov(-1*C_rate^-0.93 ~ sm,
+consumption2 <- aov(k ~ sm,
                     data = CheckIt)
 Anova(consumption2)
 par(mfrow=c(2,2))

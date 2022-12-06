@@ -13,9 +13,10 @@ library(lubridate)
 library(ggplot2)
 library(ggpmisc)
 library(tidyr)
+library(readr)
 
 Olabs <- c("lowland", "midslope", "upland", "midstream", "upstream")
-Llabs <- c("lowland", "midslope", "upland")
+Llabs <- c("lowland", "upland")
 labellies <- c('g_low' = "lowland",
                'g_mid' = "midslope",
                'g_up' = "upland",
@@ -74,23 +75,26 @@ data %>%
 
 #gross consumption vs soil moisture
 #superscripted minus sign is actually as small hyphen
-ggplot(data = na.omit(allData), aes(sm, C_rate)) +
+ggplot(data = na.omit(allData), aes(sm, uk)) +
     geom_jitter(aes(color = Location, size = (P_rate), shape = Location)) +
     scale_shape_discrete(labels = c("lowland", "upland")) +
     scale_color_discrete(labels = c("lowland", "upland")) +
     scale_size_continuous("Gross Production") +
     labs(x= "soil water content
        (H\u2082O * g\uFE63\u00b9 dry soil)",
-         y= "Gross Consumption
-       (\u00b5mol CH\u2084 * g\uFE63\u00b9 dry soil * d\uFE63\u00b9)") +
+         y= "Consumption (d\uFE63\u00b9)") +
     guides(shape = guide_legend(override.aes = list(size = 5))) +
   theme_minimal(base_size = 15) +
   theme(plot.margin = margin(t = 20, r = 20, b = 20, l = 20))
 
 #gross production vs soil moisture
-ggplot(data = CheckIt[CheckIt$id != 52,], aes(sm, P_rate)) +
-  geom_point(aes(color = Origin), size = 3) +
-  scale_color_discrete(labels = Olabs) +
+CheckIt %>%
+  filter(id != "52") %>%
+ggplot(., aes(sm, P_rate)) +
+  geom_point(aes(color = Origin, shape = Location), size = 3) +
+  scale_color_discrete(name = "Soil Origin",
+                       labels = Olabs) +
+  scale_shape_discrete(labels = Llabs) +
   geom_smooth(method = lm, formula = y ~ x, se = FALSE, size = 0.5) +
   labs(x=  "Soil Moisture
        (g\u207B\u00b9 dry soil)",
@@ -100,28 +104,52 @@ ggplot(data = CheckIt[CheckIt$id != 52,], aes(sm, P_rate)) +
                aes(label = paste(..eq.label..,
                                  ..rr.label..,
                                  sep = "~~~"))) +
-  theme_minimal(base_size = 15) +
+  theme_minimal(base_size = 13) +
   theme(plot.margin = margin(t = 20, r = 20, b = 20, l = 20))
 
-#initial gross consumption vs soil moisture
-ggplot(data = CheckIt, aes(sm, C_rate)) +
-    geom_point(aes(color = Origin), size = 3) +
+CheckIt %>%
+  filter(id != "52") %>%
+  ggplot(., aes(Location, P_rate)) +
+  geom_boxplot(aes(fill = Origin)) +
+  scale_fill_discrete(name = "Soil Origin",
+                       labels = Olabs) +
+  scale_x_discrete(labels = Llabs) +
+  geom_smooth(method = lm, formula = y ~ x, se = FALSE, size = 0.5) +
+  labs(x=  "Location",
+       y= "Gross Production
+       (\u00b5mol CH\u2084 * g\u207B\u00b9 dry soil * d\u207B\u00b9)") +
+  geom_hline(yintercept = 0, color = "red", linetype = 2) +
+  theme_bw(base_size = 13) +
+  theme(plot.margin = margin(t = 20, r = 20, b = 20, l = 20))
+
+#k vs soil moisture
+ggplot(CheckIt, aes(sm, k)) +
+    geom_point(aes(color = Origin, shape = Location), size = 3) +
     scale_color_discrete(labels = Olabs) +
+    scale_shape_discrete(labels = Llabs) +
     geom_smooth(method = lm, formula = y ~ x, se = FALSE, size = 0.5) +
   labs(x=  "Soil Moisture
        (g\uFE63\u00b9 dry soil)",
-       y= "Gross Consumption
-       (\u00b5mol CH\u2084 * g\uFE63\u00b9 dry soil * d\uFE63\u00b9)") +
+       y= "Consumption (d\uFE63\u00b9)") +
     stat_poly_eq(formula = y ~ x,
                  aes(label = paste(..eq.label..,
                                    ..rr.label..,
                                    sep = "~~~"))) +
-  theme_minimal(base_size = 15) +
+  theme_bw(base_size = 15) +
   theme(plot.margin = margin(t = 20, r = 20, b = 20, l = 20))
 
-#gross consumption vs gross production
+
+#summary of k
+ggplot(CheckIt, aes(Location, k)) +
+  geom_boxplot(aes(fill = Origin)) +
+  scale_color_discrete(labels = Olabs) +
+  scale_x_discrete(labels = Llabs) +
+  theme_bw(base_size = 15) +
+  theme(plot.margin = margin(t = 20, r = 20, b = 20, l = 20))
+
+#k vs gross production
 #superscripted minus sign is actually as small hyphen
-ggplot(data = CheckIt[CheckIt$id != 52,], aes(P_rate, C_rate), shape = Location) +
+ggplot(data = CheckIt[CheckIt$id != 52,], aes(P_rate, k), shape = Location) +
     geom_jitter(aes(color = sm), size = 5) +
     scale_shape_discrete(labels = c("lowland", "upland")) +
     scale_color_distiller("g * g\uFE63\u00b9") +
@@ -134,8 +162,7 @@ ggplot(data = CheckIt[CheckIt$id != 52,], aes(P_rate, C_rate), shape = Location)
                                  sep = "~~~")))+
     labs(x=  "Gross Production
        (\u00b5mol CH\u2084 * g\uFE63\u00b9 dry soil * d\uFE63\u00b9)",
-         y= "Gross Consumption
-       (\u00b5mol CH\u2084 * g\uFE63\u00b9 dry soil * d\uFE63\u00b9)") +
+         y= "k of consumption (d\uFE63\u00b9)") +
   theme_minimal(base_size = 15) +
   theme(plot.margin = margin(t = 20, r = 20, b = 20, l = 20))
 
@@ -153,6 +180,19 @@ ggplot(data = allData[allData$id != 52,],
     facet_wrap(Origin ~ ., labeller = as_labeller(labellies))
 
 
+#net lab methane
+#without our friend 52
+allData %>%
+  filter(id != "52",
+         round == "T1") %>%
+ggplot(.,
+       aes(Location, net, fill = Origin)) +
+  geom_boxplot() +
+  ylab("net CH4 (ppm)") + xlab("Location") +
+  ylim(-11,0) + geom_hline(yintercept = 0, color = "red", linetype = 2) +
+  scale_fill_discrete(labels = Olabs) +
+  scale_x_discrete(labels = c("lowland","upland")) +
+  theme_bw() + theme(text=element_text(size=12))
 
 
 #drop redundant rows from long form data

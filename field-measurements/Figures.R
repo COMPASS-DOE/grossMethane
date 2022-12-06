@@ -10,9 +10,9 @@ library(dplyr)
 library(ggplot2)
 library(ggpmisc)
 
-f_dat <- read.csv("licorRTA.csv")
-f_dat$date <- as.Date(f_dat$date)
-f_dat$timestamp <- ymd_hms(f_dat$timestam[], tz="EST")
+f_dat <- read.csv("field-measurements/licorRTA.csv")
+f_dat$date <- as.Date(f_dat$date, "%m/%d/%Y")
+f_dat$timestamp <- mdy_hm(f_dat$timestamp, tz="EST")
 #remove 0's from SWC
 #values from May 11th very low
 #best would be to remove just
@@ -65,8 +65,10 @@ ggplot(f_dat[f_dat$FCH4 < 50 &
                  f_dat$Location != "g_mid",], aes(Location, FCH4, fill = Origin)) +
     scale_fill_discrete(name = "Soil Origin",
                         labels = Olabs) +
-    scale_x_discrete(labels = c("lowland", "upslope")) +
-    geom_boxplot() + theme_bw()
+  geom_hline(yintercept = 0, color = "red", linetype = 2) +
+    scale_x_discrete(labels = c("lowland", "upland")) +
+      geom_boxplot() + theme_bw() +
+   theme(text=element_text(size=12))
 
 #
 #summer 2022 versions of Hopple.et.al 2022 graphs
