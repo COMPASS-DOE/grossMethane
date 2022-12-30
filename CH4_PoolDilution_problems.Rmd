@@ -364,7 +364,7 @@ for(i in unique(incdat_problems$id)) {
                        "frac_P" = params[["frac_P"]], "frac_k" = params[["frac_k"]]),
                fn = newcost,
                method = "L-BFGS-B",
-               lower = c("P" = 0.0, "k"= 0.0001, "frac_P" = 0.01, "frac_k" = 0.9),
+               lower = c("P" = 0.0, "k"= 0.0001, "frac_P" = 0.001, "frac_k" = 0.9),
                upper = c("P" = Inf, "k"= Inf, "frac_P" = 0.1, "frac_k" = 0.99),
                
                # "..." that the optimizer will pass to cost_fn:
