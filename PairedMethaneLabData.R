@@ -126,6 +126,7 @@ data %>%
 #write.csv(dataRTA, "PairedData.csv")
 
 #preliminary analysis
+#dataRTA
 allData %>%
   filter(round == "T1",
          ap_cor > 0.5) %>%
@@ -167,8 +168,8 @@ qqnorm(-1*CheckIt$P_rate^-0.19);qqline(-1*CheckIt$P_rate^-0.19)
 production1 <- aov(-1*P_rate^-0.19 ~ Location*Origin + sm,
                           data = CheckIt)
 Anova(production1)
-production2 <- aov(-1*P_rate^-0.19 ~ Origin,
-                   data = CheckIt[CheckIt$Location == "g_low",])
+production2 <- aov(-1*P_rate^-0.19 ~ Location,
+                   data = CheckIt)
 Anova(production2)
 par(mfrow=c(2,2))
 plot(production2)

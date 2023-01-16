@@ -71,11 +71,21 @@ data %>%
            Field_time = mdy_hm(f_time, tz = "UTC")) %>%
     select(-l_time, -f_time) -> allData
 
+#dataRTA
+allData %>%
+  filter(round == "T1",
+         ap_cor > 0.5) %>%
+  select(id, round,
+         Location, Origin,
+         P_rate, C_rate,
+         k, sm, delM,
+         FCH4, FCO2,
+         TA, TS, SWC) -> CheckIt
 
 
 #gross consumption vs soil moisture
 #superscripted minus sign is actually as small hyphen
-ggplot(data = na.omit(allData), aes(sm, uk)) +
+ggplot(data = na.omit(allData), aes(sm, k)) +
     geom_jitter(aes(color = Location, size = (P_rate), shape = Location)) +
     scale_shape_discrete(labels = c("lowland", "upland")) +
     scale_color_discrete(labels = c("lowland", "upland")) +
@@ -91,9 +101,9 @@ ggplot(data = na.omit(allData), aes(sm, uk)) +
 CheckIt %>%
   filter(id != "52") %>%
 ggplot(., aes(sm, P_rate)) +
-  geom_point(aes(color = Origin, shape = Location), size = 3) +
-  scale_color_discrete(name = "Soil Origin",
-                       labels = Olabs) +
+  geom_point(aes(color = Location, shape = Location), size = 3) +
+  scale_color_manual(values = c("#FF33CC", "#00CC66"),
+                     labels = Llabs) +
   scale_shape_discrete(labels = Llabs) +
   geom_smooth(method = lm, formula = y ~ x, se = FALSE, size = 0.5) +
   labs(x=  "Soil Moisture
@@ -104,29 +114,32 @@ ggplot(., aes(sm, P_rate)) +
                aes(label = paste(..eq.label..,
                                  ..rr.label..,
                                  sep = "~~~"))) +
-  theme_minimal(base_size = 13) +
+  theme_bw(base_size = 13) +
   theme(plot.margin = margin(t = 20, r = 20, b = 20, l = 20))
 
 CheckIt %>%
   filter(id != "52") %>%
   ggplot(., aes(Location, P_rate)) +
-  geom_boxplot(aes(fill = Origin)) +
-  scale_fill_discrete(name = "Soil Origin",
-                       labels = Olabs) +
+  geom_boxplot(aes(fill = Location)) +
   scale_x_discrete(labels = Llabs) +
-  geom_smooth(method = lm, formula = y ~ x, se = FALSE, size = 0.5) +
+  ylim(-3, 35) +
+  scale_fill_manual(values = c("#FF33CC", "#00CC66")) +
   labs(x=  "Location",
        y= "Gross Production
        (\u00b5mol CH\u2084 * g\u207B\u00b9 dry soil * d\u207B\u00b9)") +
   geom_hline(yintercept = 0, color = "red", linetype = 2) +
   theme_bw(base_size = 13) +
-  theme(plot.margin = margin(t = 20, r = 20, b = 20, l = 20))
+  theme(plot.margin = margin(t = 20, r = 20, b = 20, l = 20),
+        legend.position = "none")
 
 #k vs soil moisture
-ggplot(CheckIt, aes(sm, k)) +
-    geom_point(aes(color = Origin, shape = Location), size = 3) +
-    scale_color_discrete(labels = Olabs) +
-    scale_shape_discrete(labels = Llabs) +
+CheckIt %>%
+#filter(id != "52") %>%
+ggplot(., aes(sm, k)) +
+  geom_point(aes(color = Location, shape = Location), size = 3) +
+  scale_color_manual(values = c("#FF33CC", "#00CC66"),
+                     labels = Llabs) +
+  scale_shape_discrete(labels = Llabs) +
     geom_smooth(method = lm, formula = y ~ x, se = FALSE, size = 0.5) +
   labs(x=  "Soil Moisture
        (g\uFE63\u00b9 dry soil)",
@@ -149,12 +162,14 @@ ggplot(CheckIt, aes(Location, k)) +
 
 #k vs gross production
 #superscripted minus sign is actually as small hyphen
-ggplot(data = CheckIt[CheckIt$id != 52,], aes(P_rate, k), shape = Location) +
+CheckIt %>%
+  filter(id != "52") %>%
+ggplot(., aes(P_rate, k), shape = Location) +
     geom_jitter(aes(color = sm), size = 5) +
     scale_shape_discrete(labels = c("lowland", "upland")) +
     scale_color_distiller("g * g\uFE63\u00b9") +
-    geom_abline(slope = 1, size = 0.25, color = "red", linetype = 2) +
-    lims(x = c(0,75), y = c(0,75)) +
+    #geom_abline(slope = 1, size = 0.25, color = "red", linetype = 2) +
+    #lims(x = c(0,75), y = c(0,75)) +
     geom_smooth(method = lm, formula = y ~ x, se = FALSE, size = 0.75) +
   stat_poly_eq(formula = y ~ x,
                aes(label = paste(..eq.label..,
@@ -163,7 +178,7 @@ ggplot(data = CheckIt[CheckIt$id != 52,], aes(P_rate, k), shape = Location) +
     labs(x=  "Gross Production
        (\u00b5mol CH\u2084 * g\uFE63\u00b9 dry soil * d\uFE63\u00b9)",
          y= "k of consumption (d\uFE63\u00b9)") +
-  theme_minimal(base_size = 15) +
+  theme_bw(base_size = 15) +
   theme(plot.margin = margin(t = 20, r = 20, b = 20, l = 20))
 
 
