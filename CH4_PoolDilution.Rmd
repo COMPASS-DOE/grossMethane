@@ -6,7 +6,6 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-
 #load packages
 library(PoolDilutionR)
 library(dplyr)
@@ -65,12 +64,10 @@ lapply(files, read_file) %>%
 summary(incdat_raw)
 ```
 
-```{r Set Constants, echo=FALSE}
-VOL_ML <- 130  # total volume of jar
-```
-
 ### Step 2: Convert units and calculate time steps and normalization factors...  
 ```{r Convert Units, echo=TRUE}
+VOL_ML <- 130  # total volume of jar
+
 incdat_raw %>%
     # Volume of jar = 130 ml or 0.130 L, 1 ppm = 0.001 ml/L
     # The Picarro measures 20 ml, but 10 ml injected (see vol);
@@ -87,24 +84,6 @@ incdat_raw %>%
            # calculate atom percent (AP) of 13C methane in sample over time
            AP_obs = cal13CH4ml / (cal12CH4ml + cal13CH4ml) * 100) %>% 
   group_by(id) -> incdat
-
-#now we generate sample specific scaling factors for feeding into a cost function
-#see vFH2002 Eqs. 12, 13, & 14
-#need standard deviation of isotopes and mass across all measurements for each sample -> sd_obs
-#and standard deviation of the analytical precision aka
-#instrument stdev for those observations -> sd_inst
-# incdat %>% 
-#     group_by(id) %>% 
-#     mutate(m_prec = 0.001,
-#            ap_prec = 1
-    #this is now done within the cost_function
-    #        sd_obsDelta = sd(`HR Delta iCH4 Mean`),
-    #        sd_instDelta = sd(sdD),
-    #        #sdD is the instrument stdev for the delta measurement
-    #        sd_obsMass = sd(`HR 12CH4 Mean`),
-    #        sd_instMass = sd(sdC),
-    #        #sdC is the instrument stdev for the 12C mass measurement
-   #        ) -> incdat
 ```
 
 #### Input Data
@@ -115,8 +94,10 @@ facet_labels <- c(
     cal12CH4ml = "12C Methane (mL)",
     cal13CH4ml = "13C Methane (mL)")
 
+EXAMPLES <- c("2","31","52","61","64","71")
+
 incdat %>%
-    filter(id %in% c("2","31","52","61","64","71")) %>%  
+    filter(id %in% EXAMPLES) %>%  
     mutate(id_numeric = as.factor(id)) %>%
     pivot_longer(cols = c(cal12CH4ml, cal13CH4ml, AP_obs)) %>%
     ggplot(aes(round, value, group = id, color = id)) +
@@ -156,20 +137,9 @@ Returns the sum of squares between predicted and observed m and AP\
 ### Step 5: optimize P and k, then calculate consumption rate (C)  
 
 ```{r Do the thing!, echo=TRUE, message = FALSE, warning = FALSE, results='hide'}
-
-
-
-
-
-###Here lies the problem.
-
-
-
-
-
 pk_results <- list()
 incdat_out <- list()
-#all_predictions <- list()
+all_predictions <- list()
 
 for(i in unique(incdat$id)) {
     message("------------------- ", i)
@@ -182,15 +152,14 @@ for(i in unique(incdat$id)) {
         dat
     
     # Let optim() try different values for P and k until it finds best fit to data
-    #params <- list("P0" = 10) # k0 is auto-estimated
+    # Here we provide starting values for P (0.1), k (k0), and P_frac and k_frac are set to the methane default
     result <- pdr_optimize(time = dat$time_days,
                           m = dat$cal12CH4ml + dat$cal13CH4ml,
                           n = dat$cal13CH4ml,
                           P = 0.1,
                           pool = "CH4",
                           m_prec = 0.001,
-                          ap_prec = 1)#,
-                          #params_to_optimize = c("P", "k"))
+                          ap_prec = 1)
     
     # Save progress details separately so they don't print below
     progress_detail <- result$progress
@@ -213,8 +182,13 @@ for(i in unique(incdat$id)) {
                           k = result$par["k"],
                           pool = "CH4")
     dat <- bind_cols(dat, pred)
+
+#creates an error, seq_len(nrows(progress_detail)):
+    
+    #argument must be coercible to non-negative integer
     
     # # Predict based on ALL the models that were tried
+    
     # x <- split(progress_detail, seq_len(nrow(progress_detail)))
     # all_preds <- lapply(x, FUN = function(x) {
     #     y1<- data.frame(P = x$P[1],
@@ -275,14 +249,14 @@ summary(incdat_out)
 
 ```{r Summary Plots, echo = FALSE}
 # ----- Plot AP results -----
-EXAMPLES <- c("2","31","52","61","64","71")
 incdat_out %>%
     filter(id %in% EXAMPLES) %>%
     ggplot(aes(time_days, AP_obs, color = as.factor(id))) +
     geom_point(aes(shape = ""), size = 3.75) +
-    #geom_line(data = filter(all_predictions, id %in% EXAMPLES),
-              #aes(time, AP_pred, group = paste(id, P, k)), color = "grey", linetype = 2) +
-    geom_line(aes(time_days, AP_pred, group = id, linetype = ""), linewidth = 1.25) +
+#geom_line(data = filter(all_predictions, id %in% EXAMPLES),
+    #aes(time, AP_pred, group = paste(id, P, k)), color = "grey", linetype = 2) +
+    geom_line(aes(y = AP_pred, group = id, linetype = ""),
+              linewidth = 1.25) +
     scale_linetype_manual(name = "Prediction",
                           values = "dotted") +
     scale_shape_manual(name = "Observations",
@@ -298,9 +272,10 @@ incdat_out %>%
     filter(id %in% EXAMPLES) %>%
     ggplot(aes(time_days, cal12CH4ml + cal13CH4ml, color = as.factor(id))) +
     geom_point(aes(shape = ""), size = 3.75) +
-    # geom_line(data = filter(all_predictions, id %in% EXAMPLES),
-    #           aes(time, mt, group = paste(id, P, k)), color = "grey", linetype = 2) +
-    geom_line(aes(y = mt, group = id, linetype = ""), linewidth = 1.25) +
+# geom_line(data = filter(all_predictions, id %in% EXAMPLES),
+    #aes(time, mt, group = paste(id, P, k)), color = "grey", linetype = 2) +
+    geom_line(aes(y = mt, group = id, linetype = ""),
+              linewidth = 1.25) +
     scale_linetype_manual(name = "Prediction",
                           values = "dotted") +
     scale_shape_manual(name = "Observations",
@@ -323,19 +298,18 @@ incdat_out %>%
     facet_wrap( ~ name, scales = "free",
                 labeller = labeller(name = facet_labels)) +
     ggtitle("Fit Trends") + theme(legend.position = "bottom")
-
 ```
 
 
 ```{r Results Table, echo = FALSE}
 incdat_out %>%
-    filter(id %in% c("2","31","52","61","64","71"),
-           round == "T1") %>%
+    filter(id %in% EXAMPLES,
+           round == "T2") %>%
     select(id, Pt, k, Ct, AP_pred, AP_obs) %>%
     mutate(across(where(is.numeric), ~ num(., digits = 2))) -> results
 
 kable(results,
-      caption = "<center><strong>Gross Rates</strong></center>",
+      caption = "<center><strong>Gross Rates at T2</strong></center>",
       escape = FALSE,
       col.names = NULL,
       align = "c",
