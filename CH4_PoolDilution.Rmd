@@ -29,6 +29,7 @@ This code calculates gross methane production and consumption from pool dilution
 Original code was written for data collected on a Picarro CRDS equipped with a SSIM2 unit.  
 
 ### Step 1: Read in data...  
+
 ```{r Read & Clean Data, echo = FALSE, message = TRUE}
 # Get names of data files
 files <- list.files("picarro/", pattern = "*.csv", full.names = TRUE)
@@ -64,7 +65,8 @@ lapply(files, read_file) %>%
 summary(incdat_raw)
 ```
 
-### Step 2: Convert units and calculate time steps and normalization factors...  
+### Step 2: Convert units and calculate time steps and normalization factors...
+
 ```{r Convert Units, echo=TRUE}
 VOL_ML <- 130  # total volume of jar
 
@@ -159,18 +161,19 @@ for(i in unique(incdat$id)) {
                           P = 0.1,
                           pool = "CH4",
                           m_prec = 0.001,
-                          ap_prec = 1)
+                          ap_prec = 1,
+                          include_progress = TRUE)
     
     # Save progress details separately so they don't print below
     progress_detail <- result$progress
     result$progress <- NULL
 
-    message("Optimizer solution:")
-    print(result)
+    #message("Optimizer solution:")
+    #print(result)
     P <- result$par["P"]
     pk_results[[i]] <- tibble(P = P,
                               k = result$par["k"],
-                              k0 = result$initial_par["k0"],
+                              k0 = result$initial_par["k"],
                               convergence = result$convergence,
                               message = result$message)
     
@@ -182,27 +185,23 @@ for(i in unique(incdat$id)) {
                           k = result$par["k"],
                           pool = "CH4")
     dat <- bind_cols(dat, pred)
-
-#creates an error, seq_len(nrows(progress_detail)):
     
-    #argument must be coercible to non-negative integer
+    # Predict based on ALL the models that were tried
     
-    # # Predict based on ALL the models that were tried
-    
-    # x <- split(progress_detail, seq_len(nrow(progress_detail)))
-    # all_preds <- lapply(x, FUN = function(x) {
-    #     y1<- data.frame(P = x$P[1],
-    #                     k = x$k[1],
-    #                     time = seq(min(dat$time_days), max(dat$time_days), length.out = 20))
-    #     y2 <- ap_prediction(time = y1$time,
-    #                     m0 = dat$cal12CH4ml[1] + dat$cal13CH4ml[1],
-    #                     n0 = dat$cal13CH4ml[1],
-    #                     P = x$P[1],
-    #                     k = x$k[1],
-    #                     pool = "CH4")
-    #     cbind(y1, y2)
-    # })
-    # all_predictions[[i]] <- bind_rows(all_preds)
+    x <- split(progress_detail, seq_len(nrow(progress_detail)))
+    all_preds <- lapply(x, FUN = function(x) {
+      y1<- data.frame(P = x$P[1],
+                      k = x$k[1],
+                      time = seq(min(dat$time_days), max(dat$time_days), length.out = 20))
+      y2 <- ap_prediction(time = y1$time,
+                          m0 = dat$cal12CH4ml[1] + dat$cal13CH4ml[1],
+                          n0 = dat$cal13CH4ml[1],
+                          P = x$P[1],
+                          k = x$k[1],
+                          pool = "CH4")
+      cbind(y1, y2)
+    })
+    all_predictions[[i]] <- bind_rows(all_preds)
 
     # Calculate implied consumption (ml) based on predictions
     # Equation 4: dm/dt = P - C, so C = P - dm/dt
@@ -221,6 +220,7 @@ for(i in unique(incdat$id)) {
 ```{r Wrap it up!, echo=FALSE, message = FALSE}
 pk_results <- bind_rows(pk_results, .id = "id")
 incdat_out <- bind_rows(incdat_out)
+all_predictions <- bind_rows(all_predictions, .id = "id")
 
 incdat_out %>%
     # compute correlation between predictions and observations
@@ -250,40 +250,40 @@ summary(incdat_out)
 ```{r Summary Plots, echo = FALSE}
 # ----- Plot AP results -----
 incdat_out %>%
-    filter(id %in% EXAMPLES) %>%
-    ggplot(aes(time_days, AP_obs, color = as.factor(id))) +
-    geom_point(aes(shape = ""), size = 3.75) +
-#geom_line(data = filter(all_predictions, id %in% EXAMPLES),
-    #aes(time, AP_pred, group = paste(id, P, k)), color = "grey", linetype = 2) +
-    geom_line(aes(y = AP_pred, group = id, linetype = ""),
-              linewidth = 1.25) +
-    scale_linetype_manual(name = "Prediction",
-                          values = "dotted") +
-    scale_shape_manual(name = "Observations",
-                       values = 20) +
-    scale_color_discrete(guide = "none") +
-    facet_wrap(~as.numeric(id), scales = "free") +
-    xlab("\n Timestep \n") + ylab("\n (13C-CH4/Total CH4) x 100 \n") +
-    ggtitle("\n Atom% 13C \n") + theme(legend.position = "bottom")
+  filter(id %in% EXAMPLES) %>%
+  ggplot(aes(time_days, AP_obs, color = as.factor(id))) +
+  geom_point(aes(shape = ""), size = 3.75) +
+  geom_line(data = filter(all_predictions, id %in% EXAMPLES),
+            aes(time, AP_pred, group = paste(id, P, k)), color = "grey", linetype = 2) +
+  geom_line(aes(y = AP_pred, group = id, linetype = ""),
+            linewidth = 1.25) +
+  scale_linetype_manual(name = "Prediction",
+                        values = "dotted") +
+  scale_shape_manual(name = "Observations",
+                     values = 20) +
+  scale_color_discrete(guide = "none") +
+  facet_wrap(~as.numeric(id), scales = "free") +
+  xlab("\n Timestep \n") + ylab("\n (13C-CH4/Total CH4) x 100 \n") +
+  ggtitle("\n Atom% 13C \n") + theme(legend.position = "bottom")
 
 
 # ----- Plot total methane results -----
 incdat_out %>%
-    filter(id %in% EXAMPLES) %>%
-    ggplot(aes(time_days, cal12CH4ml + cal13CH4ml, color = as.factor(id))) +
-    geom_point(aes(shape = ""), size = 3.75) +
-# geom_line(data = filter(all_predictions, id %in% EXAMPLES),
-    #aes(time, mt, group = paste(id, P, k)), color = "grey", linetype = 2) +
-    geom_line(aes(y = mt, group = id, linetype = ""),
-              linewidth = 1.25) +
-    scale_linetype_manual(name = "Prediction",
-                          values = "dotted") +
-    scale_shape_manual(name = "Observations",
-                       values = 20) +
-    scale_color_discrete(guide = "none") +
-    facet_wrap(~as.numeric(id), scales = "free") +
-    xlab("\n Timestep \n") + ylab("\n Volume (mL) \n") +
-    ggtitle("\n Total Methane \n") + theme(legend.position = "bottom")
+  filter(id %in% EXAMPLES) %>%
+  ggplot(aes(time_days, cal12CH4ml + cal13CH4ml, color = as.factor(id))) +
+  geom_point(aes(shape = ""), size = 3.75) +
+  geom_line(data = filter(all_predictions, id %in% EXAMPLES),
+            aes(time, mt, group = paste(id, P, k)), color = "grey", linetype = 2) +
+  geom_line(aes(y = mt, group = id, linetype = ""),
+            linewidth = 1.25) +
+  scale_linetype_manual(name = "Prediction",
+                        values = "dotted") +
+  scale_shape_manual(name = "Observations",
+                     values = 20) +
+  scale_color_discrete(guide = "none") +
+  facet_wrap(~as.numeric(id), scales = "free") +
+  xlab("\n Timestep \n") + ylab("\n Volume (mL) \n") +
+  ggtitle("\n Total Methane \n") + theme(legend.position = "bottom")
 ```
 
 
