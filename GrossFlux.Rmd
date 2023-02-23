@@ -1,0 +1,463 @@
+---
+title: "GrossFlux"
+author: "Kendalynn A. Morris"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+#load packages
+library(PoolDilutionR)
+library(dplyr)
+library(ggplot2)
+library(ggpmisc)
+library(ggh4x)
+library(lubridate)
+library(readr)
+library(scales)
+library(tibble)
+library(tidyr)
+library(kableExtra)
+
+theme_set(theme_minimal() + theme(text = element_text(size = 11)))
+```
+
+# Methane Pool Dilution
+
+Here are the results and analysis for the gross methane flux portion of Morris et al 2023b. Fluxes are calculated using PoolDilutionR, data was collected using a Picarro CRDS equipped with a SSIM2 unit.  
+
+### Step 1: Read in data...  
+
+```{r Read & Clean Data, echo = FALSE, message = TRUE}
+# Get names of data files
+files <- list.files("picarro/", pattern = "*.csv", full.names = TRUE)
+# Helper function
+read_file <- function(f) {
+    message("Reading ", f)
+    read_csv(f, col_types = "ccdcddcddddddddddddddddddddddccccc") %>%
+        mutate(File = basename(f))
+}
+# Read in and pre-process data
+lapply(files, read_file) %>%
+    bind_rows() %>%
+    # filter out standards and clean up columns
+    filter(! id %in% c("SERC100ppm", "UMDzero", "SERCzero", "desert5000")) %>%
+    mutate(Timestamp = mdy_hm(`Date/Time`, tz = "UTC")) %>%
+    select(Timestamp, id, round, vol,
+           `HR 12CH4 Mean`, `HR 12CH4 Std`,
+           #HR stands for High Resolution
+           `HR 13CH4 Mean`, `HR 13CH4 Std`,
+           `HR Delta iCH4 Mean`, `HR Delta iCH4 Std`,
+           `12CO2 Mean`, `12CO2 Std`,
+           `13CO2 Mean`, `13CO2 Std`,
+           `Delta 13CO2 Mean`, `Delta 13CO2 Std`,
+           notes) %>%
+    # calculate elapsed time for each sample
+    arrange(id, round) %>%
+    group_by(id) %>%
+    mutate(time_days = difftime(Timestamp, min(Timestamp),
+                                units = "days"),
+           time_days = as.numeric(time_days)) ->
+    incdat_raw
+
+summary(incdat_raw[,1:10])
+```
+
+### Step 2: Convert units and calculate time steps and normalization factors...
+
+```{r Convert Units, echo=TRUE}
+VOL_ML <- 130  # total volume of jar
+
+incdat_raw %>%
+    # Volume of jar = 130 ml or 0.130 L, 1 ppm = 0.001 ml/L
+    # The Picarro measures 20 ml, but 10 ml injected (see vol);
+    # So ppm is a 1:1 dilution (1 part sample to 1 part dilutant)
+    # therefore ppm to ml = ppm * 0.001 * VOL_ML/1000 * 2
+    mutate(cal12CH4ml = `HR 12CH4 Mean` * 0.001 * VOL_ML/1000 * 2 * 1000,
+           cal13CH4ml = `HR 13CH4 Mean` * 0.001 * VOL_ML/1000 * 2 * 1000,
+           # for each 10 ml sample from 130 ml jar,
+           # 10 ml of zero air injected
+           # 12 parts sample to 1 part dilutant (13 parts total)
+           # remaining gas in jar is diluted 12:1
+           cal12CH4ml = if_else(round != "T0", cal12CH4ml * 1.083, cal12CH4ml),
+           cal13CH4ml = if_else(round != "T0", cal13CH4ml * 1.083, cal13CH4ml),
+           # calculate atom percent (AP) of 13C methane in sample over time
+           AP_obs = cal13CH4ml / (cal12CH4ml + cal13CH4ml) * 100) %>% 
+  group_by(id) -> incdat
+```
+
+```{r Do the thing!, echo = FALSE, message = FALSE, warning = FALSE, cache = TRUE, results='hide'}
+pk_results <- list()
+incdat_out <- list()
+all_predictions <- list()
+
+for(i in unique(incdat$id)) {
+    message("------------------- ", i)
+    # Isolate this sample's data
+    incdat %>%
+        filter(id == i) %>%
+        select(id, round, vol, time_days,
+               cal12CH4ml, cal13CH4ml,
+               AP_obs) ->
+        dat
+    
+    # Let optim() try different values for P and k until it finds best fit to data
+    # Here we provide starting values for P (0.1), k (k0), and P_frac and k_frac are set to the methane default
+    result <- pdr_optimize(time = dat$time_days,
+                          m = dat$cal12CH4ml + dat$cal13CH4ml,
+                          n = dat$cal13CH4ml,
+                          P = 0.1,
+                          pool = "CH4",
+                          m_prec = 0.5,
+                          ap_prec = 0.01,
+                          include_progress = TRUE)
+    
+    # Save progress details separately so they don't print below
+    progress_detail <- result$progress
+    result$progress <- NULL
+
+    #message("Optimizer solution:")
+    #print(result)
+    P <- result$par["P"]
+    pk_results[[i]] <- tibble(P = P,
+                              k = result$par["k"],
+                              k0 = result$initial_par["k"],
+                              convergence = result$convergence,
+                              message = result$message)
+    
+    # Predict based on the optimized parameters
+    pred <- pdr_predict(time = dat$time_days,
+                          m0 = dat$cal12CH4ml[1] + dat$cal13CH4ml[1],
+                          n0 = dat$cal13CH4ml[1],
+                          P = P,
+                          k = result$par["k"],
+                          pool = "CH4")
+    dat <- bind_cols(dat, pred)
+    
+    # Predict based on ALL the models that were tried
+    
+    x <- split(progress_detail, seq_len(nrow(progress_detail)))
+    all_preds <- lapply(x, FUN = function(x) {
+      y1<- data.frame(P = x$P[1],
+                      k = x$k[1],
+                      time = seq(min(dat$time_days), max(dat$time_days), length.out = 20))
+      y2 <- pdr_predict(time = y1$time,
+                          m0 = dat$cal12CH4ml[1] + dat$cal13CH4ml[1],
+                          n0 = dat$cal13CH4ml[1],
+                          P = x$P[1],
+                          k = x$k[1],
+                          pool = "CH4")
+      cbind(y1, y2)
+    })
+    all_predictions[[i]] <- bind_rows(all_preds)
+
+    # Calculate implied consumption (ml) based on predictions
+    # Equation 4: dm/dt = P - C, so C = P - dm/dt
+    total_methane <- dat$cal12CH4ml + dat$cal13CH4ml
+    change_methane <- c(0, diff(total_methane))
+    change_time <- c(0, diff(dat$time_days))
+    dat$Pt <- P * change_time #P is ml/day
+    #amount of methane produced at time (t) of this incubation, a volume in mL
+    dat$Ct <- dat$Pt - change_methane
+    #amount of methane consumed at time (t) of this incubation, a volume in mL
+
+    incdat_out[[i]] <- dat
+}
+```
+
+```{r Wrap it up!, echo=FALSE, message = FALSE}
+pk_results <- bind_rows(pk_results, .id = "id")
+incdat_out <- bind_rows(incdat_out)
+all_predictions <- bind_rows(all_predictions, .id = "id")
+
+incdat_out %>%
+    # compute correlation between predictions and observations
+    group_by(id) %>%
+    summarise(m_cor = cor(cal12CH4ml + cal13CH4ml, mt),
+              ap_cor = cor(AP_obs, AP_pred)) ->
+    performance_summary
+
+performance_summary %>%
+    right_join(pk_results, by = "id") ->
+    pk_results
+print(pk_results)
+
+pk_results %>%
+    right_join(incdat_out, by = "id") ->
+    incdat_out
+```
+
+# Results  
+
+```{r Summarize Output}
+summary(incdat_out)
+```
+
+# Summary Plots  
+
+```{r Summary Plots, echo = FALSE, fig.height = 10, fig.width = 12}
+# ----- Plot AP results -----
+incdat_out %>%
+  ggplot(aes(time_days, AP_obs, color = as.factor(id))) +
+  geom_point(aes(shape = ""), size = 3.75) +
+  geom_line(data = all_predictions,
+            aes(time, AP_pred, group = paste(id, P, k)), color = "grey", linetype = 2) +
+  geom_line(aes(y = AP_pred, group = id, linetype = ""),
+            linewidth = 1.25) +
+  scale_linetype_manual(name = "Prediction",
+                        values = "dotted") +
+  scale_shape_manual(name = "Observations",
+                     values = 20) +
+  scale_color_discrete(guide = "none") +
+  facet_wrap(~as.numeric(id), scales = "free") +
+  xlab("\n Timestep \n") + ylab("\n (13C-CH4/Total CH4) x 100 \n") +
+  ggtitle("\n Atom% 13C \n") + theme(legend.position = "bottom")
+
+
+# ----- Plot total methane results -----
+incdat_out %>%
+  ggplot(aes(time_days, cal12CH4ml + cal13CH4ml, color = as.factor(id))) +
+  geom_point(aes(shape = ""), size = 3.75) +
+  geom_line(data = all_predictions,
+            aes(time, mt, group = paste(id, P, k)), color = "grey", linetype = 2) +
+  geom_line(aes(y = mt, group = id, linetype = ""),
+            linewidth = 1.25) +
+  scale_linetype_manual(name = "Prediction",
+                        values = "dotted") +
+  scale_shape_manual(name = "Observations",
+                     values = 20) +
+  scale_color_discrete(guide = "none") +
+  facet_wrap(~as.numeric(id), scales = "free") +
+  xlab("\n Timestep \n") + ylab("\n Volume (mL) \n") +
+  ggtitle("\n Total Methane \n") + theme(legend.position = "bottom")
+```
+
+# Normalize by Soil Mass (g)
+
+```{r Incubation Soil Data}
+#read in soil moisture data
+smDat <- read_csv("field-measurements/July22_soilmoisture.csv",
+                  col_types = "ccdddcc")
+#combine lab data (no flux data yet)
+labDat <- merge(smDat, incdat_out, by = "id")
+#calculate soil dry mass and fresh water mass
+labDat$mass <- labDat$jdry - labDat$jempty
+labDat$sm <- (labDat$jfresh - labDat$jdry)/labDat$mass
+
+#ml to umols, n = (PV/RT)*10^6
+#R = 82.0574 mL * atm/K*mol
+#T = 297.15 K, estimated lab temp
+#P = 1 atm
+#V = Pt or Ct
+
+labDat$umolP <- (labDat$Pt/(82.0574*297.15)) * 10^6
+labDat$umolC <- (labDat$Ct/(82.0574*297.15)) * 10^6
+
+#convert to rate per g dry soil per day
+labDat$P_rate <- (labDat$umolP/labDat$time_days)/labDat$mass
+labDat$C_rate <- (labDat$umolC/labDat$time_days)/labDat$mass
+
+labDat %>%
+  filter(round == "T4", Location == "g_low") %>%
+  select(Origin, sm, P_rate, C_rate) %>%
+  pivot_longer(sm:C_rate, names_to = "var") %>%
+  group_by(Origin, var) %>%
+  summarize(across(everything(), list(Mean = mean, SD = sd),
+                   .names = "{.fn}"),
+            .groups = "drop") %>%
+  pivot_wider(names_from = "var",
+              values_from = c(Mean, SD),
+              names_glue = "{var}_{.value}") -> Lowland
+print(Lowland)
+
+labDat %>%
+  filter(round == "T1", Location == "g_up") %>%
+  select(Origin, sm, P_rate, C_rate) %>%
+  pivot_longer(sm:C_rate, names_to = "var") %>%
+  group_by(Origin, var) %>%
+  summarize(across(everything(), list(Mean = mean, SD = sd),
+                   .names = "{.fn}"),
+            .groups = "drop") %>%
+  pivot_wider(names_from = "var",
+              values_from = c(Mean, SD),
+              names_glue = "{var}_{.value}") -> Upland
+print(Upland)
+
+```
+
+#Analyze
+
+```{r normalization of gross fluxes}
+
+#select T4 as the representative flux for all analyses. Justification: at the end of the incubation head space gas composition will most closely resemble the atmosphere.
+labDat %>%
+  filter(round == "T4") -> grossFlux
+
+hist(grossFlux$sm)
+hist(grossFlux$P_rate)
+hist(grossFlux$C_rate)
+
+require(rcompanion)
+transformTukey(grossFlux$P_rate,
+               plotit = TRUE, verbose = TRUE)
+transformTukey(grossFlux$C_rate,
+               plotit = TRUE, verbose = TRUE)
+
+hist(grossFlux$P_rate^0.025)
+hist(-1 * grossFlux$C_rate^-0.075)
+```
+
+Soil samples come from 5 different origins (lowland, upland, midslope, upstream, and midstream) and are situated in two physical locations (lowland, upland). Does soil origin, current location, or an interaction between the two explain variation in gross methane production or consumption?
+
+```{r production}
+require(car)
+P_transplant <- aov(P_rate^0.025 ~ Location*Origin,
+                  data = grossFlux)
+Anova(P_transplant)
+P_moisture <- aov(P_rate^0.025 ~ sm,
+                  data = grossFlux)
+Anova(P_moisture)
+```
+There's some evidence that location influences methane production, and equally good evidence that soil moisture does.
+
+```{r consumption}
+require(car)
+C_transplant <- aov(-1 * C_rate^-0.075 ~ Location*Origin,
+                  data = grossFlux)
+Anova(C_transplant)
+C_moisture <- aov(C_rate ~ sm,
+                  data = grossFlux)
+Anova(C_moisture)
+```
+
+There's strong evidence that location influences methane consumption, and even stronger evidence that soil moisture does.
+
+```{r moisture}
+require(car)
+sm_transplant <- aov(sm ~ Location*Origin,
+                  data = grossFlux)
+Anova(sm_transplant)
+```
+
+Location strongly influences soil moisture values, which have a clear influence on methane gross rates. In order to better test the influence of soil origin, we separate the two locations and test the effect of origin without the interaction of current location.
+
+```{r Within One Locatoin}
+grossFlux %>%
+  filter(Location == "g_up") -> UpFlux
+
+hist(UpFlux$sm)
+hist(UpFlux$P_rate)
+hist(UpFlux$C_rate)
+
+transformTukey(UpFlux$P_rate,
+               plotit = TRUE, verbose = TRUE)
+transformTukey(UpFlux$C_rate,
+               plotit = TRUE, verbose = TRUE)
+
+hist(UpFlux$P_rate^0.025)
+hist(-1 * UpFlux$C_rate^-0.725)
+
+upP_transplant <- aov(P_rate^0.025 ~ Origin,
+                  data = UpFlux)
+Anova(upP_transplant)
+upC_transplant <- aov(-1 * C_rate^-0.725 ~ Origin,
+                  data = UpFlux)
+Anova(upC_transplant)
+
+upP_moisture <- aov(P_rate^0.025 ~ sm,
+                  data = UpFlux)
+Anova(upP_moisture)
+upC_moisture <- aov(-1 * C_rate^-0.725 ~ sm,
+                  data = UpFlux)
+Anova(upC_moisture)
+```
+
+This makes a compelling argument that soil origin has no influences on gross methane production or consumption in the upland, rather the variation that is present in gross consumption is best explained by soil moisture.
+
+```{r}
+grossFlux %>%
+  filter(Location == "g_low") -> LowFlux
+
+hist(LowFlux$sm)
+hist(LowFlux$P_rate)
+hist(LowFlux$C_rate)
+
+transformTukey(LowFlux$P_rate,
+               plotit = TRUE, verbose = TRUE)
+transformTukey(LowFlux$C_rate,
+               plotit = TRUE, verbose = TRUE)
+
+hist(-1 * LowFlux$P_rate^-0.325)
+hist(-1 * LowFlux$C_rate^-0.025)
+
+LowP_transplant <- aov(-1* P_rate^0.325 ~ Origin,
+                  data = LowFlux)
+Anova(LowP_transplant)
+LowC_transplant <- aov(-1 * C_rate^-0.025 ~ Origin,
+                  data = LowFlux)
+Anova(LowC_transplant)
+
+LowP_moisture <- aov(-1* P_rate^0.325 ~ sm,
+                  data = LowFlux)
+Anova(LowP_moisture)
+LowC_moisture <- aov(-1 * C_rate^-0.025 ~ sm,
+                  data = LowFlux)
+Anova(LowC_moisture)
+```
+
+And same for the lowland location.
+
+```{r}
+#summary of production
+Olabs <- c("lowland", "midslope", "upland", "midstream", "upstream")
+Llabs <- c("lowland", "upland")
+labellies <- c('g_low' = "lowland",
+               'g_mid' = "midslope",
+               'g_up' = "upland",
+               'midstream' = "midstream",
+               'upstream' = "upstream")
+grossFlux %>%
+  select(Location, Origin, P_rate, C_rate, sm) %>%
+  pivot_longer(P_rate:sm, names_to = "vars") %>%
+ggplot(., aes(Location, value, fill = Origin)) +
+    scale_x_discrete(labels = c("lowland",
+                                "upland")) +
+    scale_fill_discrete(labels = Olabs) +
+    geom_boxplot() + facet_wrap(.~vars, scales = "free")
+
+```
+```{r Consumption vs SM}
+ggplot(grossFlux, aes(sm, C_rate)) +
+  geom_point(aes(color = Location, shape = Location), size = 3) +
+  scale_color_manual(values = c("#FF33CC", "#00CC66"),
+                     labels = Llabs) +
+  scale_shape_discrete(labels = Llabs) +
+    geom_smooth(method = lm, formula = y ~ x, se = FALSE, size = 0.5) +
+  labs(x=  "Soil Moisture
+       (g\uFE63\u00b9 dry soil)",
+       y= "Consumption FIX UNIT") +
+    stat_poly_eq(formula = y ~ x,
+                 aes(label = paste(..eq.label..,
+                                   ..rr.label..,
+                                   sep = "~~~"))) +
+  theme_bw(base_size = 15) +
+  theme(plot.margin = margin(t = 20, r = 20, b = 20, l = 20))
+```
+
+```{r Production vs SM}
+ggplot(grossFlux, aes(sm, P_rate)) +
+  geom_point(aes(color = Location, shape = Location), size = 3) +
+  scale_color_manual(values = c("#FF33CC", "#00CC66"),
+                     labels = Llabs) +
+  scale_shape_discrete(labels = Llabs) +
+    geom_smooth(method = lm, formula = y ~ x, se = FALSE, size = 0.5) +
+  labs(x=  "Soil Moisture
+       (g\uFE63\u00b9 dry soil)",
+       y= "Production FIX UNIT (d\uFE63\u00b9)") +
+    stat_poly_eq(formula = y ~ x,
+                 aes(label = paste(..eq.label..,
+                                   ..rr.label..,
+                                   sep = "~~~"))) +
+  theme_bw(base_size = 15) +
+  theme(plot.margin = margin(t = 20, r = 20, b = 20, l = 20))
+```

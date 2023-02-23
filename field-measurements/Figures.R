@@ -10,7 +10,7 @@ library(dplyr)
 library(ggplot2)
 library(ggpmisc)
 
-f_dat <- read.csv("field-measurements/licorRTA.csv")
+f_dat <- read.csv("licorRTA.csv")
 f_dat$date <- as.Date(f_dat$date, "%m/%d/%Y")
 f_dat$timestamp <- mdy_hm(f_dat$timestamp, tz="EST")
 #remove 0's from SWC
