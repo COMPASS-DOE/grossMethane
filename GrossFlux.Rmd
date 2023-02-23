@@ -9,6 +9,7 @@ output: html_document
 #load packages
 library(PoolDilutionR)
 library(dplyr)
+library(generics)
 library(ggplot2)
 library(ggpmisc)
 library(ggh4x)
@@ -20,6 +21,27 @@ library(tidyr)
 library(kableExtra)
 
 theme_set(theme_minimal() + theme(text = element_text(size = 11)))
+
+# 'Pretty n' function to round a numeric value and print that # of digits
+pn <- function(x, n) {
+  formatC(round(unlist(x), n),
+          digits = n, format = "f")
+}
+
+# 'Clean p value' function to pretty-print p value(s), specifically
+pclean <- function(x, digits = 3, printP = TRUE) {
+  x <- as.vector(x)
+  ltstring <- paste0("< 0.", paste(rep("0", digits - 1), 
+                                   collapse = ""), "1")
+  valstring <- ifelse(x < 10 ^ -digits, 
+                      ltstring, pn(x, digits))
+  if(printP) {
+    paste("P", ifelse(x < 10 ^ -digits, 
+                      valstring, paste("=", valstring)))
+  } else {
+    valstring
+  }
+}
 ```
 
 # Methane Pool Dilution
@@ -285,9 +307,9 @@ print(Upland)
 
 ```
 
-#Analyze
+# Initial Analysis
 
-```{r normalization of gross fluxes}
+```{r normalization of gross fluxes, echo = FALSE, results='hide'}
 
 #select T4 as the representative flux for all analyses. Justification: at the end of the incubation head space gas composition will most closely resemble the atmosphere.
 labDat %>%
@@ -314,11 +336,15 @@ require(car)
 P_transplant <- aov(P_rate^0.025 ~ Location*Origin,
                   data = grossFlux)
 Anova(P_transplant)
+Ptrans <- unlist(Anova(P_transplant))
+Ptrans_loc <- Ptrans["Pr(>F)1"]
 P_moisture <- aov(P_rate^0.025 ~ sm,
                   data = grossFlux)
 Anova(P_moisture)
+Pmois <- unlist(Anova(P_moisture))
+Pmois_sm <- Pmois["Pr(>F)1"]
 ```
-There's some evidence that location influences methane production, and equally good evidence that soil moisture does.
+There's some evidence that location influences methane production (`r pclean(Ptrans_loc, 3)`), and equally good evidence that soil moisture does (`r pclean(Pmois_sm, 3)`.
 
 ```{r consumption}
 require(car)
@@ -341,7 +367,9 @@ Anova(sm_transplant)
 
 Location strongly influences soil moisture values, which have a clear influence on methane gross rates. In order to better test the influence of soil origin, we separate the two locations and test the effect of origin without the interaction of current location.
 
-```{r Within One Locatoin}
+# Alternative Models
+
+```{r Within Upland, echo = FALSE, results='hide'}
 grossFlux %>%
   filter(Location == "g_up") -> UpFlux
 
@@ -372,9 +400,9 @@ upC_moisture <- aov(-1 * C_rate^-0.725 ~ sm,
 Anova(upC_moisture)
 ```
 
-This makes a compelling argument that soil origin has no influences on gross methane production or consumption in the upland, rather the variation that is present in gross consumption is best explained by soil moisture.
+This makes a compelling argument that soil origin has no influences on gross methane production or consumption in the upland, rather the variation that is present in gross consumption is best explained by soil moisture. 
 
-```{r}
+```{r, Within Lowland, echo = FALSE, results='hide'}
 grossFlux %>%
   filter(Location == "g_low") -> LowFlux
 
@@ -407,7 +435,9 @@ Anova(LowC_moisture)
 
 And same for the lowland location.
 
-```{r}
+# Summary Plot of Gross Rates
+
+```{r, Summary Graph of Analytes, echo = FALSE results='hide'}
 #summary of production
 Olabs <- c("lowland", "midslope", "upland", "midstream", "upstream")
 Llabs <- c("lowland", "upland")
@@ -426,6 +456,21 @@ ggplot(., aes(Location, value, fill = Origin)) +
     geom_boxplot() + facet_wrap(.~vars, scales = "free")
 
 ```
+
+# Distribution of Gross Rates
+
+```{r net of gross}
+grossFlux$diff <- grossFlux$P_rate - grossFlux$C_rate
+
+ggplot(grossFlux, aes(diff, fill = Location)) +
+  scale_fill_discrete(labels = Llabs) +
+  geom_histogram(binwidth = 0.5, color = "black")
+
+```
+
+# Linear Regression with Soil Moisture
+
+
 ```{r Consumption vs SM}
 ggplot(grossFlux, aes(sm, C_rate)) +
   geom_point(aes(color = Location, shape = Location), size = 3) +
