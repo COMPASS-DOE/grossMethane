@@ -10,6 +10,10 @@ CH4_PoolDilution.pdf
 *.html
 *.png
 
+#GrossFlux_
+GrossFlux_files/
+GrossFlux_cache/
+
 #field-measurements
 field-measurements/*.csv
 
