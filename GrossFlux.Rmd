@@ -339,11 +339,11 @@ Soil samples come from 5 different origins (lowland, upland, midslope, upstream,
 
 ```{r production, message = FALSE, warning = FALSE}
 require(car)
-P_transplant <- aov(P_rate^0.025 ~ Location*Origin,
+P_transplant <- lm(P_rate^0.025 ~ Location*Origin,
                   data = grossFlux)
-Anova(P_transplant)
-Ptrans <- unlist(Anova(P_transplant))
-Ptrans_loc <- Ptrans["Pr(>F)1"]
+summary(P_transplant)
+Ptrans <- summary(P_transplant)$coefficients[,4]
+Ptrans_loc <- Ptrans["Pr(>t)1"]
 
 P_moisture <- aov(P_rate^0.025 ~ sm,
                   data = grossFlux)
