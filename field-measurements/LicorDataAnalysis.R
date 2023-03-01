@@ -8,11 +8,15 @@
 library(lubridate)
 library(dplyr)
 library(ggplot2)
+
+#currently reading in both nlme (slow, but used in B&P '02) AND lme4 (faster, confusing syntax)
 library(nlme)
 library(lme4)
 
 f_dat <- read.csv("field-measurements/licorRTA.csv")
 f_dat$date <- as_date(f_dat$date, tz="EST", format = "%m/%d/%Y")
+#campaign can then be used as a factor, every collar should have a flux value for each week within this period
+#BUT there are missing weeks and missing collars within weeks
 f_dat$campaign <- cut(f_dat$date, "week", start.on.monday = FALSE)
 f_dat$timestamp <- mdy_hm(f_dat$timestamp, tz="EST")
 
@@ -24,7 +28,7 @@ for (x in 8:13) {
     hist(i,
          main = paste(var))
 }
-#SWC 0 should be removed
+#SWC zeros should be removed
 #fluxes should be log transformed
 dev.off()
 
@@ -44,88 +48,42 @@ f_dat$nFCO2 <- log10(f_dat$FCO2)
 f_dat$SWC <- replace(f_dat$SWC, f_dat$SWC < 0.10, NA)
 hist(f_dat$SWC)
 
+#Here the analytical flow for B&P '02 begins for methane fluxes
 
-#Methane
+#basic linear model
 CH4.1 <- gls(nFCH4 ~ campaign,
              data = f_dat,
              na.action=na.omit)
 #does not account for repeated measures or treatments
 
+#random intercepts for each sample ID (ie., Collar)
+#nlme syntax
 CH4.2lme <- lme(nFCH4 ~ campaign,
              random = ~1|Collar,
              data = f_dat,
              na.action = na.omit)
 
+#This should be the code for the same model in lme4 syntax
 # CH4.2lmer <- lmer(nFCH4 ~ campaign + (1|Collar),
 #              data = f_dat,
 #              na.action=na.omit)
 #allows intercepts to vary randomly by Collar ID
 
-summary(CH4.1)
-summary(CH4.2lme) #second model has substantially improved fit
+anova(CH4.1, CH4.2lme) #second model has substantially improved fit
+#anova() does not work with products of lme4
+#instead summary() has to be used for both and values manually compared
 
-
+#allows the slopes associated with campaign to vary randomly among Collar IDs
 CH4.3 <- update(CH4.2lme, random = ~1+campaign|Collar)
+
+#The code below should do that same thing as the code above,
+#but is more explicit
+
 # CH4.3 <- lme(nFCH4 ~ campaign,
 #              random = ~1 + campaign|Collar,
-#              data = f_dat[f_dat$Location == "g_low",],
+#              data = f_dat,
 #              na.action = na.omit)
-#allows the slopes assocaited with campaign to vary randomly among Collar IDs
 
-anova(CH4.2, CH4.3) #second model has substantially improved fit
-
-#interaction driven by lowland
-ggplot(f_dat, aes(week(timestamp), FCH4, fill = Origin)) +
-    geom_boxplot(aes(group = interaction(week(timestamp), Origin))) +
-    labs(x = "Calendar Week", y = "Flux CH4",
-         title = "Interaction of Origin & Location") +
-    facet_wrap(Location ~ campaign, scales = "free") +
-    theme_bw()
-
-
-#lowland only
-low_meth <- aov(nFCH4 ~ Origin + date + SWC + TS,
-               data = f_dat[f_dat$Location == "g_low",])
-summary(low_meth)
-par(mfrow=c(2,2))
-plot(low_meth)
-dev.off()
-TukeyHSD(low_meth, which = "Origin")
-
-#midland soil in lowland is very high
-ggplot(f_dat[f_dat$Location == "g_low",], aes(week(timestamp), FCH4, fill = Origin)) +
-    geom_boxplot(aes(group = interaction(week(timestamp), Origin))) +
-    labs(x = "Calendar Week", y = "Flux CH4",
-         title = "Effect of Origin on Lowland CH4") +
-    theme_bw()
-
-#exclude g_mid
-alt_low_meth <- aov(nFCH4 ~ Origin + date + SWC + TS,
-                data = f_dat[f_dat$Location == "g_low" &
-                                 f_dat$Origin != "g_mid",])
-summary(alt_low_meth)
-par(mfrow=c(2,2))
-plot(alt_low_meth)
-dev.off()
-TukeyHSD(alt_low_meth, which = "Origin")
-#without midland soil, SWC content is the most important
-
-#are midland origin soils the wettest?
-SWC <- aov(SWC ~ Origin + date,
-           data = f_dat[f_dat$Location == "g_low",])
-summary(SWC)
-TukeyHSD(SWC, which = "Origin")
-#yes, soils originating from the midland are wetter than
-#lowland, midstream, and upstream soils
-#also they are statistically similar to upland soils
-#which have the second highest water content
-
-#if midland soils are removed,
-#are there still differences?
-SWC <- aov(SWC ~ Origin + date,
-           data = f_dat[f_dat$Location == "g_low" &
-                            f_dat$Origin != "g_mid",])
-summary(SWC)
-TukeyHSD(SWC, which = "Origin")
-#No! Woot Woot!
+#next step
+#anova(CH4.2lme, CH4.3)
 
