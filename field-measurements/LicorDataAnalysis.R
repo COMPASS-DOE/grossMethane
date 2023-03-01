@@ -8,14 +8,17 @@
 library(lubridate)
 library(dplyr)
 library(ggplot2)
+library(nlme)
+library(lme4)
 
-f_dat <- read.csv("licorRTA.csv")
-f_dat$date <- as.Date(f_dat$date)
-f_dat$timestamp <- ymd_hms(f_dat$timestam[], tz="EST")
+f_dat <- read.csv("field-measurements/licorRTA.csv")
+f_dat$date <- as_date(f_dat$date, tz="EST", format = "%m/%d/%Y")
+f_dat$campaign <- cut(f_dat$date, "week", start.on.monday = FALSE)
+f_dat$timestamp <- mdy_hm(f_dat$timestamp, tz="EST")
 
 #are data normally distributed?
 par(mfrow = c(2, 3))
-for (x in 9:13) {
+for (x in 8:13) {
     var = names(f_dat)[x]
     i <- f_dat[,x]
     hist(i,
@@ -36,25 +39,47 @@ hist(log10(f_dat$FCO2))
 f_dat$nFCO2 <- log10(f_dat$FCO2)
 
 #SWC
-is.na(f_dat$SWC) <- !f_dat$SWC
+#cutting off values below 0.10,
+#below this is almost certainly probe malfunction
+f_dat$SWC <- replace(f_dat$SWC, f_dat$SWC < 0.10, NA)
 hist(f_dat$SWC)
 
 
 #Methane
-methane <- aov(nFCH4 ~ Location*Origin + date + SWC + TS,
-             data = f_dat)
-summary(methane)
-par(mfrow=c(2,2))
-plot(methane)
-dev.off()
-TukeyHSD(methane, which = "Location")
+CH4.1 <- gls(nFCH4 ~ campaign,
+             data = f_dat,
+             na.action=na.omit)
+#does not account for repeated measures or treatments
+
+CH4.2lme <- lme(nFCH4 ~ campaign,
+             random = ~1|Collar,
+             data = f_dat,
+             na.action = na.omit)
+
+# CH4.2lmer <- lmer(nFCH4 ~ campaign + (1|Collar),
+#              data = f_dat,
+#              na.action=na.omit)
+#allows intercepts to vary randomly by Collar ID
+
+summary(CH4.1)
+summary(CH4.2lme) #second model has substantially improved fit
+
+
+CH4.3 <- update(CH4.2lme, random = ~1+campaign|Collar)
+# CH4.3 <- lme(nFCH4 ~ campaign,
+#              random = ~1 + campaign|Collar,
+#              data = f_dat[f_dat$Location == "g_low",],
+#              na.action = na.omit)
+#allows the slopes assocaited with campaign to vary randomly among Collar IDs
+
+anova(CH4.2, CH4.3) #second model has substantially improved fit
 
 #interaction driven by lowland
 ggplot(f_dat, aes(week(timestamp), FCH4, fill = Origin)) +
     geom_boxplot(aes(group = interaction(week(timestamp), Origin))) +
     labs(x = "Calendar Week", y = "Flux CH4",
          title = "Interaction of Origin & Location") +
-    facet_wrap(Location ~ ., scales = "free") +
+    facet_wrap(Location ~ campaign, scales = "free") +
     theme_bw()
 
 
