@@ -15,6 +15,7 @@ library(dplyr)
 library(lubridate)
 library(ggplot2)
 library(ggpmisc)
+select <- dplyr::select
 
 theme_set(theme_minimal() + theme(text = element_text(size = 11)))
 
@@ -44,7 +45,7 @@ Here are the field net-rate data and their analysis for the surface-flux portion
 
 # Data Summary
 
-```{r Read & Summarize Data, echo = FALSE, message = TRUE}
+```{r Read & Summarize Data, echo = FALSE, warning = FALSE, message = TRUE}
 f_dat <- read.csv("field-measurements/licorRTA.csv")
 f_dat$date <- as_date(f_dat$date, "%m/%d/%Y", tz="EST")
 f_dat$timestamp <- mdy_hm(f_dat$timestamp, tz="EST")
@@ -68,250 +69,187 @@ hist(log10(f_dat$FCO2))
 f_dat$nFCO2 <- log10(f_dat$FCO2)
 
 #SWC
-is.na(f_dat$SWC) <- !f_dat$SWC
+#cutting off values below 0.10,
+#below this is almost certainly probe malfunction
+f_dat$SWC <- replace(f_dat$SWC, f_dat$SWC < 0.10, NA)
 hist(f_dat$SWC)
 
-#select T4 as the representative flux for all analyses. Justification: at the end of the incubation head space gas composition will most closely resemble the atmosphere.
-labDat %>%
-  filter(round == "T4") -> grossFlux
 
-hist(grossFlux$sm)
-hist(grossFlux$P_rate)
-hist(grossFlux$C_rate)
-
-require(rcompanion)
-transformTukey(grossFlux$P_rate,
-               plotit = TRUE, verbose = TRUE)
-transformTukey(grossFlux$C_rate,
-               plotit = TRUE, verbose = TRUE)
-
-hist(grossFlux$P_rate^0.025)
-hist(-1 * grossFlux$C_rate^-0.075)
+Olabs <- c("lowland", "midslope", "upland", "midstream", "upstream")
+Llabs <- c("lowland", "midslope", "upland")
+months <- c("May", "June", "July", "August")
 ```
 
-Soil samples come from 5 different origins (lowland, upland, midslope, upstream, and midstream) and are situated in two physical locations (lowland, upland). Does soil origin, current location, or an interaction between the two explain variation in gross methane production or consumption?  
+Soil samples come from 5 different origins (lowland, upland, midslope, upstream, and midstream) and are situated in two physical locations (lowland, upland). Does soil origin, current location, or an interaction between the two explain variation in field measurements of CH4 or CO2 flux?  
 
-## Production 
+## Methane
 
-```{r production, message = FALSE, warning = FALSE}
-require(car)
-P_transplant <- aov(P_rate^0.025 ~ Location*Origin,
-                  data = grossFlux)
-Anova(P_transplant)
-Ptrans <- unlist(Anova(P_transplant))
-Ptrans_loc <- Ptrans["Pr(>F)1"]
-
-P_moisture <- aov(P_rate^0.025 ~ sm,
-                  data = grossFlux)
-Anova(P_moisture)
-Pmois <- unlist(Anova(P_moisture))
-Pmois_sm <- Pmois["Pr(>F)1"]
+```{r Methane, message = FALSE, warning = FALSE}
+methane <- aov(nFCH4 ~ Location*Origin + date + SWC + TS,
+             data = f_dat)
+summary(methane)
+# par(mfrow=c(2,2))
+# plot(methane)
+# dev.off()
+TukeyHSD(methane, which = "Location")
 ```
 
-There is evidence that location influences methane production (`r pclean(Ptrans_loc, 3)`), and equal evidence that soil moisture does (`r pclean(Pmois_sm, 3)`).  
+Initial analysis indicates a significant interaction between location and origin.  
 
-## Consumption
+```{r summary graph of methane, warning = FALSE, message = FALSE}
+f_dat %>%
+  filter(if_else(Location == "g_up", FCH4 < 300,
+                 FCH4 < 2000)) -> filterM_f_dat
 
-```{r consumption, message = FALSE, warning = FALSE}
-require(car)
-C_transplant <- aov(-1 * C_rate^-0.075 ~ Location*Origin,
-                  data = grossFlux)
-Anova(C_transplant)
-Ctrans <- unlist(Anova(C_transplant))
-Ctrans_loc <- Ctrans["Pr(>F)1"]
+names(Llabs) = c("g_low", "g_mid", "g_up")
 
-C_moisture <- aov(C_rate ~ sm,
-                  data = grossFlux)
-Anova(C_moisture)
-Cmois <- unlist(Anova(C_moisture))
-Cmois_sm <- Cmois["Pr(>F)1"]
+#interaction driven by lowland
+ggplot(filterM_f_dat, aes(month(timestamp), FCH4, fill = Origin)) +
+    geom_boxplot(aes(group = interaction(month(timestamp), Origin))) +
+    scale_fill_discrete(name = "Soil Origin",
+                      labels = Olabs) +
+    labs(x = "Month", y = "Flux CH4",
+         title = "Filtered Fluxes by Origin & Location") +
+    facet_wrap(Location ~ ., scales = "free",
+               labeller = labeller(Location = Llabs)) +
+    theme_bw() + theme(legend.position = "bottom")
+
+#Should some of these data points be filtered out of the analysis?
 ```
 
-There's strong evidence that location influences methane consumption (`r pclean(Ctrans_loc, 3)`), and even stronger evidence that soil moisture does (`r pclean(Cmois_sm, 3)`).  
+```{r Is interaction a true soil origin effect?}
+#are midland origin soils the wettest?
+SWC <- aov(SWC ~ Origin + date,
+           data = f_dat[f_dat$Location == "g_low",])
+summary(SWC)
+TukeyHSD(SWC, which = "Origin")
+
+#exclude g_mid
+alt_low_meth <- aov(nFCH4 ~ Origin + date + SWC + TS,
+                data = f_dat[f_dat$Location == "g_low" &
+                                 f_dat$Origin != "g_mid",])
+summary(alt_low_meth)
+par(mfrow=c(2,2))
+plot(alt_low_meth)
+dev.off()
+TukeyHSD(alt_low_meth, which = "Origin")
+#without midland soil, SWC content is the most important
+```
+
+Midland soils are the wettest in the lowland location, and when they are excluded the interaction term is no longer significant. There is no reason to believe that midland soils have inherently higher WHC than other soil origins (insert data on WHC here), therefore we attribute this effect to microtopography.
+
+## Carbon Dioxide
+
+```{r carbon dioxide, message = FALSE, warning = FALSE}
+carbondioxide <- aov(nFCO2 ~ Location*Origin + date + SWC + TS,
+             data = f_dat)
+summary(carbondioxide)
+# par(mfrow=c(2,2))
+# plot(carbondioxide)
+# dev.off()
+TukeyHSD(carbondioxide, which = "Location")
+```
+
+All factors highly significant. Not helpful for understanding patterns.
+
+```{r summary graph of respiration, warning = FALSE, message = FALSE}
+f_dat %>%
+  filter(FCO2 < 30,
+         Origin %in% c("g_low", "g_mid", "g_up")) -> filterC_f_dat
+
+#elevation transplant
+ggplot(filterC_f_dat, aes(month(timestamp), FCO2, fill = Origin)) +
+    geom_boxplot(aes(group = interaction(month(timestamp), Origin))) +
+      scale_fill_discrete(name = "Soil Origin",
+                      labels = Olabs) +
+    labs(x = "Month", y = "Flux CO2",
+         title = "Up and Downslope Transplant") +
+    facet_wrap(Location ~ ., scales = "free",
+               labeller = labeller(Location = Llabs)) +
+    theme_bw() + theme(legend.position = "bottom")
+
+
+
+#Variation within Lowland
+ggplot(f_dat[f_dat$Location == "g_low",], aes(month(timestamp), FCO2, fill = Origin)) +
+    geom_boxplot(aes(group = interaction(month(timestamp), Origin))) +
+      scale_fill_discrete(name = "Soil Origin",
+                      labels = Olabs) +
+    labs(x = "Month", y = "Flux CO2",
+         title = "Lowland Plot Soil Respiration") +
+    theme_bw() + theme(legend.position = "bottom")
+
+```
+
+```{r Less complicated CO2 analysis}
+
+#just the transplant and location effects
+slope <- aov(FCO2 ~ Location * Origin,
+           data = filterC_f_dat,
+           na.action = na.omit)
+summary(slope)
+
+library(emmeans)
+library(multcomp)
+
+groups_CO2 <- emmeans(slope, ~ Origin|Location, adjust = "sidak")
+cld(groups_CO2)
+
+CO2_letters <- c("a","b","c",
+                 "a","b","b",
+                 "a","b","b")
+
+f_dat %>%
+  filter(Origin %in% c("g_low", "g_mid", "g_up")) %>%
+  group_by(Location, Origin) %>%
+  mutate(mean = mean(FCO2),
+         sd = sd(FCO2),
+         n = n()) %>%
+  select(Location, Origin, mean, sd, n) %>%
+  unique(.) %>%
+  arrange(Location, Origin) -> CO2_fixedE
+
+CO2_fixedE$letters <- CO2_letters
+
+#elevation transplant
+ggplot(CO2_fixedE, aes(Location, mean)) +
+  geom_errorbar(aes(ymin = mean-sd/sqrt(n), ymax = mean + sd/sqrt(n)),
+                position = position_dodge2(width = 0.5)) +
+  geom_point(aes(color = Origin),
+             position = position_dodge2(width = 0.9),
+             size = 6) +
+  scale_color_discrete(name = "Soil Origin",
+                      labels = Olabs) +
+  scale_x_discrete(labels = Llabs) +
+  labs(x = "\n Location", y = "Flux CO2",
+       title = "Up and Downslope Transplant") +
+  geom_text(aes(y=mean, label=letters),
+            position = position_dodge2(width = 0.9)) +
+  theme_bw() + theme(legend.position = "bottom")
+
+```
 
 ## Soil Moisture
 
 ```{r moisture, message = FALSE, warning = FALSE}
-require(car)
-sm_transplant <- aov(sm ~ Location*Origin,
-                  data = grossFlux)
-Anova(sm_transplant)
-Mois <- unlist(Anova(sm_transplant))
-Mois_loc <- Mois["Pr(>F)1"]
+require(tidyr)
+f_dat %>%
+  select(Location, Origin, FCO2, FCH4, SWC, TS) %>%
+  pivot_longer(cols = c(FCO2, FCH4),
+               names_to = "Flux_name",
+               values_to = "Flux_value") -> longF
+
+ggplot(longF[longF$Flux_value < 1000,], aes(SWC, Flux_value, group = Flux_name)) +
+  geom_point(aes(color = Origin)) +
+  geom_smooth(method = lm, formula = y ~ x, se = FALSE) +
+  stat_poly_eq(formula = y ~ x,
+               aes(label = paste(..p.value.label..,
+                                 ..eq.label..,
+                                 ..rr.label..,
+                                 sep = "~~~"))) +
+  scale_color_discrete(name = "Soil Origin",
+                       labels = Olabs)
 ```
 
 Location strongly influences soil moisture values (`r pclean(Mois_loc, 3)`), which have a clear influence on both gross methane fluxes. In order to directly test the influence of soil origin, we separate the two locations and assess soil-origin without the interaction of current location.  
 
-# Origin Effects
-
-```{r Origin Within Upland, echo = FALSE, include = FALSE}
-grossFlux %>%
-  filter(Location == "g_up") -> UpFlux
-
-hist(UpFlux$sm)
-hist(UpFlux$P_rate)
-hist(UpFlux$C_rate)
-
-transformTukey(UpFlux$P_rate,
-               plotit = TRUE, verbose = TRUE)
-transformTukey(UpFlux$C_rate,
-               plotit = TRUE, verbose = TRUE)
-
-hist(UpFlux$P_rate^0.025)
-hist(-1 * UpFlux$C_rate^-0.725)
-
-#soil origin
-#production
-upP_transplant <- aov(P_rate^0.025 ~ Origin,
-                  data = UpFlux)
-Anova(upP_transplant)
-upPt <- unlist(Anova(upP_transplant))
-UpP_trans <- upPt["Pr(>F)1"]
-
-#consumption
-upC_transplant <- aov(-1 * C_rate^-0.725 ~ Origin,
-                  data = UpFlux)
-Anova(upC_transplant)
-upCt <- unlist(Anova(upC_transplant))
-UpC_trans <- upCt["Pr(>F)1"]
-```
-
-## Upland  
-
-We find no evidence that soil origin influences gross methane production or consumption in the upland (`r pclean(c(UpP_trans, UpC_trans), 3)`).
-
-```{r Origin on Moisture in Upland, echo = FALSE, include = FALSE}
-upP_moisture <- aov(P_rate^0.025 ~ sm,
-                  data = UpFlux)
-Anova(upP_moisture)
-
-upC_moisture <- aov(-1 * C_rate^-0.725 ~ sm,
-                  data = UpFlux)
-Anova(upC_moisture)
-upCm <- unlist(Anova(upC_moisture))
-UpC_mois <- upCm["Pr(>F)1"]
-```
-
-Rather the variation that is present in gross consumption is best explained by soil moisture (`r pclean(UpC_mois, 3)`). 
-
-## Lowland  
-
-```{r Origin Within Lowland, echo = FALSE, include = FALSE}
-grossFlux %>%
-  filter(Location == "g_low") -> LowFlux
-
-hist(LowFlux$sm)
-hist(LowFlux$P_rate)
-hist(LowFlux$C_rate)
-
-transformTukey(LowFlux$P_rate,
-               plotit = TRUE, verbose = TRUE)
-transformTukey(LowFlux$C_rate,
-               plotit = TRUE, verbose = TRUE)
-
-hist(-1 * LowFlux$P_rate^-0.325)
-hist(-1 * LowFlux$C_rate^-0.025)
-
-#soil origin
-#production
-LowP_transplant <- aov(-1* P_rate^0.325 ~ Origin,
-                  data = LowFlux)
-Anova(LowP_transplant)
-lowP_trans <- unlist(Anova(LowP_transplant))
-lowPt <- lowP_trans["Pr(>F)1"]
-
-#consumption
-LowC_transplant <- aov(-1 * C_rate^-0.025 ~ Origin,
-                  data = LowFlux)
-Anova(LowC_transplant)
-lowC_trans <- unlist(Anova(LowC_transplant))
-lowCt <- lowC_trans["Pr(>F)1"]
-```
-
-Similarly, there is no evidence that soil origin influences gross methane production or consumption in the lowland (`r pclean(c(lowPt, lowCt), 3)`).  
-
-```{r Origin on Moisture in Lowland, echo = FALSE, include = FALSE}
-LowP_moisture <- aov(-1* P_rate^0.325 ~ sm,
-                  data = LowFlux)
-Anova(LowP_moisture)
-
-LowC_moisture <- aov(-1 * C_rate^-0.025 ~ sm,
-                  data = LowFlux)
-Anova(LowC_moisture)
-lowCm <- unlist(Anova(LowC_moisture))
-lowC_mois <- lowCm["Pr(>F)1"]
-```
-
-Instead, the variation that is present in gross consumption is best explained by soil moisture (`r pclean(lowC_mois, 3)`).
-
-# Summary Plot of Gross Rates
-
-```{r Summary Graph of Analytes, echo = FALSE, warning = FALSE}
-#summary of production
-Olabs <- c("lowland", "midslope", "upland", "midstream", "upstream")
-Llabs <- c("lowland", "upland")
-labellies <- c('g_low' = "lowland",
-               'g_mid' = "midslope",
-               'g_up' = "upland",
-               'midstream' = "midstream",
-               'upstream' = "upstream")
-grossFlux %>%
-  select(Location, Origin, P_rate, C_rate, sm) %>%
-  pivot_longer(P_rate:sm, names_to = "vars") %>%
-ggplot(., aes(Location, value, fill = Origin)) +
-    scale_x_discrete(labels = c("lowland",
-                                "upland")) +
-    scale_fill_discrete(labels = Olabs) +
-    geom_boxplot() + facet_wrap(.~vars, scales = "free")
-
-```
-
-# Distribution of Gross Rates
-
-```{r net of gross, echo = FALSE, warning = FALSE}
-grossFlux$diff <- grossFlux$P_rate - grossFlux$C_rate
-
-ggplot(grossFlux, aes(diff, fill = Location)) +
-  scale_fill_discrete(labels = Llabs) +
-  xlab("Net Rate") +
-  geom_histogram(binwidth = 0.5, color = "black")
-
-```
-
-# Linear Regressions with Soil Moisture
-
-```{r Consumption vs SM, echo = FALSE, warning = FALSE}
-library(latex2exp)
-
-ggplot(grossFlux, aes(sm, C_rate)) +
-  geom_point(aes(color = Location, shape = Location), size = 3) +
-  scale_color_manual(values = c("#FF33CC", "#00CC66"),
-                     labels = Llabs) +
-  scale_shape_discrete(labels = Llabs) +
-    geom_smooth(method = lm, formula = y ~ x, se = FALSE, size = 0.5) +
-  labs(x=  unname(TeX("\n Soil Moisture $(g * g^{-1})$")),
-       y= unname(TeX("\n Consumption $(\\mu mol * g^{-1} * d^{-1})$"))) +
-    stat_poly_eq(formula = y ~ x,
-                 aes(label = paste(..eq.label..,
-                                   ..rr.label..,
-                                   sep = "~~~"))) +
-  theme_bw(base_size = 15) +
-  theme(plot.margin = margin(t = 20, r = 20, b = 20, l = 20))
-```
-
-```{r Production vs SM, echo = FALSE, warning = FALSE}
-ggplot(grossFlux, aes(sm, P_rate)) +
-  geom_point(aes(color = Location, shape = Location), size = 3) +
-  scale_color_manual(values = c("#FF33CC", "#00CC66"),
-                     labels = Llabs) +
-  scale_shape_discrete(labels = Llabs) +
-    geom_smooth(method = lm, formula = y ~ x, se = FALSE, size = 0.5) +
-  labs(x=  unname(TeX("\n Soil Moisture $(g * g^{-1})$")),
-       y= unname(TeX("\n Production $(\\mu mol * g^{-1} * d^{-1})$"))) +
-    stat_poly_eq(formula = y ~ x,
-                 aes(label = paste(..eq.label..,
-                                   ..rr.label..,
-                                   sep = "~~~"))) +
-  theme_bw(base_size = 15) +
-  theme(plot.margin = margin(t = 20, r = 20, b = 20, l = 20))
-```
