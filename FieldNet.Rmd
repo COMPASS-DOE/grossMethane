@@ -129,9 +129,9 @@ alt_low_meth <- aov(nFCH4 ~ Origin + date + SWC + TS,
                 data = f_dat[f_dat$Location == "g_low" &
                                  f_dat$Origin != "g_mid",])
 summary(alt_low_meth)
-par(mfrow=c(2,2))
-plot(alt_low_meth)
-dev.off()
+# par(mfrow=c(2,2))
+# plot(alt_low_meth)
+# dev.off()
 TukeyHSD(alt_low_meth, which = "Origin")
 #without midland soil, SWC content is the most important
 ```
@@ -250,6 +250,4 @@ ggplot(longF[longF$Flux_value < 1000,], aes(SWC, Flux_value, group = Flux_name))
   scale_color_discrete(name = "Soil Origin",
                        labels = Olabs)
 ```
-
-Location strongly influences soil moisture values (`r pclean(Mois_loc, 3)`), which have a clear influence on both gross methane fluxes. In order to directly test the influence of soil origin, we separate the two locations and assess soil-origin without the interaction of current location.  
 
