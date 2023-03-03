@@ -168,23 +168,12 @@ ggplot(filterC_f_dat, aes(month(timestamp), FCO2, fill = Origin)) +
                labeller = labeller(Location = Llabs)) +
     theme_bw() + theme(legend.position = "bottom")
 
-
-
-#Variation within Lowland
-ggplot(f_dat[f_dat$Location == "g_low",], aes(month(timestamp), FCO2, fill = Origin)) +
-    geom_boxplot(aes(group = interaction(month(timestamp), Origin))) +
-      scale_fill_discrete(name = "Soil Origin",
-                      labels = Olabs) +
-    labs(x = "Month", y = "Flux CO2",
-         title = "Lowland Plot Soil Respiration") +
-    theme_bw() + theme(legend.position = "bottom")
-
 ```
 
 ```{r Less complicated CO2 analysis}
 
 #just the transplant and location effects
-slope <- aov(FCO2 ~ Location * Origin,
+slope <- aov(nFCO2 ~ Location * Origin,
            data = filterC_f_dat,
            na.action = na.omit)
 summary(slope)
@@ -196,7 +185,7 @@ groups_CO2 <- emmeans(slope, ~ Origin|Location, adjust = "sidak")
 cld(groups_CO2)
 
 CO2_letters <- c("a","b","c",
-                 "a","b","b",
+                 "a","a","b",
                  "a","b","b")
 
 f_dat %>%
@@ -213,7 +202,7 @@ CO2_fixedE$letters <- CO2_letters
 
 #elevation transplant
 ggplot(CO2_fixedE, aes(Location, mean)) +
-  geom_errorbar(aes(ymin = mean-sd/sqrt(n), ymax = mean + sd/sqrt(n)),
+  geom_errorbar(aes(ymin = mean-sd, ymax = mean + sd),
                 position = position_dodge2(width = 0.5)) +
   geom_point(aes(color = Origin),
              position = position_dodge2(width = 0.9),
@@ -251,3 +240,58 @@ ggplot(longF[longF$Flux_value < 1000,], aes(SWC, Flux_value, group = Flux_name))
                        labels = Olabs)
 ```
 
+
+```{r Less complicated CO2 origin analysis}
+
+f_dat %>%
+  filter(Location == "g_low") -> filterC_f_dat2
+
+#just the transplant and location effects
+OriginC <- aov(nFCO2 ~ Origin,
+           data = filterC_f_dat2,
+           na.action = na.omit)
+summary(OriginC)
+
+groups_originCO2 <- emmeans(OriginC, ~ Origin, adjust = "sidak")
+cld(groups_originCO2)
+
+
+
+# #Variation within Lowland
+# ggplot(f_dat[f_dat$Location == "g_low",], aes(month(timestamp), FCO2, fill = Origin)) +
+#     geom_boxplot(aes(group = interaction(month(timestamp), Origin))) +
+#       scale_fill_discrete(name = "Soil Origin",
+#                       labels = Olabs) +
+#     labs(x = "Month", y = "Flux CO2",
+#          title = "Lowland Plot Soil Respiration") +
+#     theme_bw() + theme(legend.position = "bottom")
+
+CO2_Oletters <- c("A", "B", "AC", "AC", "C")
+
+filterC_f_dat2%>%
+  group_by(Origin) %>%
+  mutate(mean = mean(FCO2),
+         sd = sd(FCO2),
+         n = n()) %>%
+  select(Origin, mean, sd, n) %>%
+  unique(.) %>%
+  arrange(Origin) -> CO2_OriginE
+
+CO2_OriginE$letters <- CO2_Oletters
+
+#elevation transplant
+ggplot(CO2_OriginE, aes(Origin, mean)) +
+  geom_errorbar(aes(ymin = mean-sd, ymax = mean + sd),
+                position = position_dodge2(width = 0.5)) +
+  geom_point(aes(color = Origin),
+             position = position_dodge2(width = 0.9),
+             size = 6) +
+  scale_color_discrete(name = "Soil Origin",
+                      labels = Olabs) +
+  scale_x_discrete(name = "Soil Origin",
+                   labels = Olabs) +
+  labs(y = "Flux CO2", title = "Seasonal Average within Lowland Plot") +
+  geom_text(aes(y=mean, label=letters),
+            position = position_dodge2(width = 0.9)) +
+  theme_bw() + theme(legend.position = "none")
+```
