@@ -54,9 +54,24 @@ f_dat$Collar <- as.factor(f_dat$Collar)
 summary(f_dat)
 ```
 
-# Normalize
+# Clean and Normalize
 
 ```{r normalization of field data, include = FALSE}
+f_dat %>%
+  filter(if_else(Location == "g_up", FCH4 < 300,
+                 FCH4 < 2000),
+         FCH4 > -10) -> f_dat
+
+f_dat %>%
+   group_by(Location, Origin) %>%
+   mutate(mean = mean(FCH4),
+          sd = sd(FCH4),
+          max = max(FCH4),
+          min = min(FCH4),
+          n = n()) %>%
+  select(Location, Origin, mean, sd, max, min, n) %>%
+  unique(.) %>%
+  arrange(Location, Origin) -> MethaneSummary
 
 #CH4
 range(f_dat$FCH4)
@@ -115,6 +130,27 @@ ggplot(filterM_f_dat, aes(month(timestamp), FCH4, fill = Origin)) +
     theme_bw() + theme(legend.position = "bottom")
 
 #Should some of these data points be filtered out of the analysis?
+
+f_dat %>%
+  group_by(Location, Origin) %>%
+  mutate(mean = mean(FCH4),
+         sd = sd(FCH4),
+         max = max(FCH4),
+         min = min(FCH4),
+         n = n()) %>%
+  select(Location, Origin, mean, sd, max, min, n) %>%
+  unique(.) %>%
+  arrange(Location, Origin) -> MethaneSummary
+
+
+ggplot(f_dat[f_dat$Location == "g_low",], aes(month(timestamp), SWC, fill = Origin)) +
+    geom_boxplot(aes(group = interaction(month(timestamp), Origin))) +
+    scale_fill_discrete(name = "Soil Origin",
+                      labels = Olabs) +
+    labs(x = "Month", y = "Flux CH4",
+         title = "Filtered Fluxes by Origin & Location") +
+    theme_bw() + theme(legend.position = "bottom")
+
 ```
 
 ```{r Is interaction a true soil origin effect?}
@@ -125,15 +161,24 @@ summary(SWC)
 TukeyHSD(SWC, which = "Origin")
 
 #exclude g_mid
-alt_low_meth <- aov(nFCH4 ~ Origin + date + SWC + TS,
-                data = f_dat[f_dat$Location == "g_low" &
-                                 f_dat$Origin != "g_mid",])
+alt_low_meth <- aov(nFCH4 ~ Origin + SWC,
+                data = f_dat)
 summary(alt_low_meth)
 # par(mfrow=c(2,2))
 # plot(alt_low_meth)
 # dev.off()
 TukeyHSD(alt_low_meth, which = "Origin")
 #without midland soil, SWC content is the most important
+
+ggplot(f_dat[f_dat$Location == "g_low",],
+       aes(month(timestamp), SWC, fill = Origin)) +
+     geom_boxplot(aes(group = interaction(month(timestamp), Origin))) +
+     scale_fill_discrete(name = "Soil Origin",
+                         labels = Olabs) +
+     labs(x = "Month", y = "SWC",
+          title = "Lowland SWC") +
+     theme_bw() + theme(legend.position = "bottom")
+
 ```
 
 Midland soils are the wettest in the lowland location, and when they are excluded the interaction term is no longer significant. There is no reason to believe that midland soils have inherently higher WHC than other soil origins (insert data on WHC here), therefore we attribute this effect to microtopography.
@@ -218,29 +263,6 @@ ggplot(CO2_fixedE, aes(Location, mean)) +
 
 ```
 
-## Soil Moisture
-
-```{r moisture, message = FALSE, warning = FALSE}
-require(tidyr)
-f_dat %>%
-  select(Location, Origin, FCO2, FCH4, SWC, TS) %>%
-  pivot_longer(cols = c(FCO2, FCH4),
-               names_to = "Flux_name",
-               values_to = "Flux_value") -> longF
-
-ggplot(longF[longF$Flux_value < 1000,], aes(SWC, Flux_value, group = Flux_name)) +
-  geom_point(aes(color = Origin)) +
-  geom_smooth(method = lm, formula = y ~ x, se = FALSE) +
-  stat_poly_eq(formula = y ~ x,
-               aes(label = paste(..p.value.label..,
-                                 ..eq.label..,
-                                 ..rr.label..,
-                                 sep = "~~~"))) +
-  scale_color_discrete(name = "Soil Origin",
-                       labels = Olabs)
-```
-
-
 ```{r Less complicated CO2 origin analysis}
 
 f_dat %>%
@@ -295,3 +317,29 @@ ggplot(CO2_OriginE, aes(Origin, mean)) +
             position = position_dodge2(width = 0.9)) +
   theme_bw() + theme(legend.position = "none")
 ```
+
+
+## Soil Moisture
+
+```{r moisture, message = FALSE, warning = FALSE}
+require(tidyr)
+f_dat %>%
+  select(Location, Origin, FCO2, FCH4, SWC, TS) %>%
+  pivot_longer(cols = c(FCO2, FCH4),
+               names_to = "Flux_name",
+               values_to = "Flux_value") -> longF
+
+ggplot(longF[longF$Flux_value < 1000,], aes(SWC, Flux_value, group = Flux_name)) +
+  geom_point(aes(color = Origin)) +
+  geom_smooth(method = lm, formula = y ~ x, se = FALSE) +
+  stat_poly_eq(formula = y ~ x,
+               aes(label = paste(..p.value.label..,
+                                 ..eq.label..,
+                                 ..rr.label..,
+                                 sep = "~~~"))) +
+  scale_color_discrete(name = "Soil Origin",
+                       labels = Olabs)
+```
+
+
+
