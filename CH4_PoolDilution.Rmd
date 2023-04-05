@@ -235,7 +235,8 @@ performance_summary %>%
 print(pk_results)
 
 pk_results %>%
-    right_join(incdat_out, by = "id") ->
+    # We expect multiple matches; `multiple="all"` silences warning about this
+    right_join(incdat_out, by = "id", multiple = "all") ->
     incdat_out
 ```
 
