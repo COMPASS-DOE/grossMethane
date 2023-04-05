@@ -7,7 +7,7 @@
 
 library(lubridate)
 library(dplyr)
-library(ggplot2)
+library(sjPlot)
 library(nlme)
 
 
@@ -102,6 +102,12 @@ anova(CH4.4, CH4.2_campaign)
 
 #now to bring in additional fixed effects
 #options: CO2 flux, SWC, Location, and/or Origin (both factors combined coded as 'type')
+CH4.5aprime <- lme(nFCH4 ~ camp_numeric + nFCO2 + SWC + Location + Origin,
+              random = ~ camp_numeric|Collar,
+              data = f_dat,
+              weights = varExp(form = ~camp_numeric),
+              na.action = na.omit,
+              method = "ML")
 
 CH4.5a <- lme(nFCH4 ~ camp_numeric + nFCO2 + SWC + type,
              random = ~ camp_numeric|Collar,
@@ -131,9 +137,14 @@ CH4.5d <- lme(nFCH4 ~ camp_numeric + SWC,
               na.action = na.omit,
               method = "ML")
 
-AIC(CH4.5a, CH4.5b, CH4.5c, CH4.5d)
-BIC(CH4.5a, CH4.5b, CH4.5c, CH4.5d)
+AIC(CH4.5aprime, CH4.5a, CH4.5b, CH4.5c, CH4.5d)
+BIC(CH4.5aprime, CH4.5a, CH4.5b, CH4.5c, CH4.5d)
 
-#most compelx model wins out
+#most complex model wins out
 summary(CH4.5a)
 
+
+plot_model(CH4.5a)
+tab_model(CH4.5a)
+#additional visual ideas
+#https://lmudge13.github.io/sample_code/mixed_effects.html
