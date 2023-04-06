@@ -22,16 +22,6 @@ f_dat$timestamp <- mdy_hm(f_dat$timestamp, tz="EST")
 f_dat$type <- as.factor(paste(as.character(f_dat$Location), as.character(f_dat$Origin)))
 
 #are data normally distributed?
-par(mfrow = c(2, 3))
-for (x in 8:13) {
-    var = names(f_dat)[x]
-    i <- f_dat[,x]
-    hist(i,
-         main = paste(var))
-}
-#SWC zeros should be removed
-#fluxes should be log transformed
-dev.off()
 
 #CH4
 range(f_dat$FCH4)
@@ -103,14 +93,14 @@ anova(CH4.4, CH4.2_campaign)
 #now to bring in additional fixed effects
 #options: CO2 flux, SWC, Location, and/or Origin (both factors combined coded as 'type')
 CH4.5aprime <- lme(nFCH4 ~ camp_numeric + nFCO2 + SWC + Location + Origin,
-              random = ~ camp_numeric|Collar,
+              random = ~ 1|Collar,
               data = f_dat,
               weights = varExp(form = ~camp_numeric),
               na.action = na.omit,
               method = "ML")
 
 CH4.5a <- lme(nFCH4 ~ camp_numeric + nFCO2 + SWC + type,
-             random = ~ camp_numeric|Collar,
+             random = ~ 1|Collar,
              data = f_dat,
              weights = varExp(form = ~camp_numeric),
              na.action = na.omit,
@@ -140,8 +130,8 @@ CH4.5d <- lme(nFCH4 ~ camp_numeric + SWC,
 AIC(CH4.5aprime, CH4.5a, CH4.5b, CH4.5c, CH4.5d)
 BIC(CH4.5aprime, CH4.5a, CH4.5b, CH4.5c, CH4.5d)
 
-#most complex model wins out
-summary(CH4.5a)
+#intermediate complexity model wins out
+summary(CH4.5b)
 
 
 plot_model(CH4.5a)

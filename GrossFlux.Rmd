@@ -283,9 +283,11 @@ labDat$umolC <- (labDat$Ct/(82.0574*297.15)) * 10^6
 labDat$P_rate <- (labDat$umolP/labDat$mass)/labDat$time_days
 labDat$C_rate <- (labDat$umolC/labDat$mass)/labDat$time_days
 
+#select T4 as the representative flux for all analyses. Justification: at the end of the incubation head space gas composition will most closely resemble the atmosphere.
+
 labDat %>%
   filter(round == "T4", Location == "g_low") %>%
-  select(Origin, sm, P_rate, C_rate) %>%
+  select(Origin, sm, netFromGross, P_rate, C_rate) %>%
   pivot_longer(sm:C_rate, names_to = "var") %>%
   group_by(Origin, var) %>%
   summarize(across(everything(), list(Mean = mean, SD = sd),
@@ -311,11 +313,14 @@ print(Upland)
 
 ```
 
+```{r Export for comparison with field rates, include = FALSE}
+#write.csv(labDat, file = "labDat.csv")
+```
+
 # Transplantation Effects
 
 ```{r normalization of gross fluxes, include = FALSE}
 
-#select T4 as the representative flux for all analyses. Justification: at the end of the incubation head space gas composition will most closely resemble the atmosphere.
 labDat %>%
   filter(round == "T4") -> grossFlux
 

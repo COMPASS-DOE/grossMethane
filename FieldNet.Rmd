@@ -51,6 +51,13 @@ f_dat$date <- as_date(f_dat$date, "%m/%d/%Y", tz="EST")
 f_dat$timestamp <- mdy_hm(f_dat$timestamp, tz="EST")
 f_dat$Collar <- as.factor(f_dat$Collar)
 
+#campaign can then be used as a factor, every collar should have a flux value for each week within this period
+#BUT there are missing weeks and missing collars within weeks
+f_dat$campaign <- cut(f_dat$date, "week", start.on.monday = FALSE)
+f_dat$campaign <- ymd(f_dat$campaign, tz="EST")
+f_dat$camp_numeric <- as.numeric(as.factor(f_dat$campaign))
+f_dat$type <- as.factor(paste(as.character(f_dat$Location), as.character(f_dat$Origin)))
+
 summary(f_dat)
 ```
 
@@ -153,7 +160,8 @@ ggplot(f_dat[f_dat$Location == "g_low",], aes(month(timestamp), SWC, fill = Orig
 
 ```
 
-```{r Is interaction a true soil origin effect?}
+```{r Follow-up on interaction effect}
+#Is interaction a true soil origin effect?
 #are midland origin soils the wettest?
 SWC <- aov(SWC ~ Origin + date,
            data = f_dat[f_dat$Location == "g_low",])
@@ -182,6 +190,21 @@ ggplot(f_dat[f_dat$Location == "g_low",],
 ```
 
 Midland soils are the wettest in the lowland location, and when they are excluded the interaction term is no longer significant. There is no reason to believe that midland soils have inherently higher WHC than other soil origins (insert data on WHC here), therefore we attribute this effect to microtopography.
+
+```{r Linear Mixed Effects Model}
+library(nlme)
+library(sjPlot)
+
+CH4.5b <- lme(nFCH4 ~ camp_numeric + nFCO2 + SWC + Location,
+              random = ~ 1|Collar,
+              data = f_dat,
+              weights = varExp(form = ~camp_numeric),
+              na.action = na.omit,
+              method = "ML")
+
+plot_model(CH4.5b)
+tab_model(CH4.5b)
+```
 
 ## Carbon Dioxide
 
