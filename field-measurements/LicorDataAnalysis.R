@@ -10,7 +10,6 @@ library(dplyr)
 library(sjPlot)
 library(nlme)
 
-
 f_dat <- read.csv("field-measurements/licorRTA.csv")
 f_dat$date <- as_date(f_dat$date, tz="EST", format = "%m/%d/%Y")
 #campaign can then be used as a factor, every collar should have a flux value for each week within this period

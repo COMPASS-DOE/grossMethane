@@ -13,7 +13,6 @@ library(ggpmisc)
 library(dplyr)
 library(tidyr)
 library(lubridate)
-library(lme4)
 
 Olabs <- c("lowland", "midslope", "upslope", "midstream", "upstream")
 Llabs <- c("lowland", "midslope", "upslope")
@@ -90,7 +89,8 @@ data %>%
                            "upstream", "midstream"),
          SWC > 0) %>%
   relocate(date, .after = Rep) %>%
-    mutate(month = as.factor(month(date))) -> old_dat
+  mutate(month = as.factor(month(date)),
+         day = yday(timestamp)) -> old_dat
 
 old_dat$month <- recode_factor(old_dat$month,
                          "11" = "Nov",
@@ -108,10 +108,11 @@ ggplot(old_dat, aes(month, SWC, fill = Origin)) +
                       labels = Olabs) +
   theme_bw()
 
-ggplot(old_dat, aes(month, TS, fill = Origin)) +
+ggplot(old_dat, aes(month, FCH4, fill = Origin)) +
   geom_boxplot(aes(group = interaction(month(timestamp), Origin))) +
   scale_fill_discrete(name = "Soil Origin",
                       labels = Olabs) +
+  facet_wrap(Location ~ ., scales = "free") +
     theme_bw()
 
 ggplot(old_dat, aes(SWC, FCH4, color = as.factor(Origin))) +
@@ -199,10 +200,31 @@ ggplot(data = uplow, aes(Movement, FCH4, fill = Movement)) +
                                 "upland-lowland" = "#9b42f5", "upland-upland" = "#2eab5e")) +
   theme_bw()
 
-#memory issues?
+
 library(nlme)
-ungroup(old_dat) -> old_dat
-CH4lme <- lme(FCH4 ~ Origin*date,
-              data = old_dat,
-              random = ~ Collar|Location)
+old_dat %>%
+  ungroup() %>%
+  mutate(type = paste(Location, Origin)) -> old_dat
+
+CH4lme <- lme(FCH4 ~ as.numeric(day) + SWC + type,
+                     random = ~ 1|Collar,
+                     data = old_dat,
+                     weights = varExp(form = ~as.numeric(day)),
+                     na.action = na.omit,
+                     method = "ML")
+
 summary(CH4lme)
+
+old_dat %>%
+  filter(month == "Nov") -> Nov_old_dat
+
+
+CH4lme_Nov <- lme(FCH4 ~ as.numeric(day) + SWC + type,
+              random = ~ 1|Collar,
+              data = Nov_old_dat,
+              weights = varExp(form = ~as.numeric(day)),
+              na.action = na.omit,
+              method = "ML")
+
+
+summary(CH4lme_Nov)
