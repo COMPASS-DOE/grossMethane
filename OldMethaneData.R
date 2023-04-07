@@ -228,3 +228,4 @@ CH4lme_Nov <- lme(FCH4 ~ as.numeric(day) + SWC + type,
 
 
 summary(CH4lme_Nov)
+plot_model(CH4lme_Nov)

@@ -14,7 +14,8 @@ output:
 library(dplyr)
 library(lubridate)
 library(ggplot2)
-library(ggpmisc)
+library(kableExtra)
+library(ggbreak)
 select <- dplyr::select
 
 theme_set(theme_minimal() + theme(text = element_text(size = 11)))
@@ -90,8 +91,6 @@ Olabs <- c("lowland", "midslope", "upland", "midstream", "upstream")
 Llabs <- c("lowland", "upland")
 ```
 
-
-
 ```{r graphs, warning = FALSE, message = FALSE}
 
 ggplot(pairedDat, aes(lab_net, FCH4, color = Origin)) +
@@ -124,7 +123,30 @@ pairedDat %>%
   unique(.) %>%
   arrange(Location, Origin) -> MethaneComparison
 
+kable(MethaneComparison)
+
 ```
 
+# Lab Net Rates
 
+```{r Net Lab Rate Figure}
+
+pairedDat$group <- "near zero"
+pairedDat[pairedDat$lab_net < -10,]$group <- "consuming"
+pairedDat[pairedDat$lab_net > 10,]$group <- "strongly producing"
+
+pairedDat %>%
+  select(group, lab_net, Collar) %>%
+  right_join(l_dat, by = "Collar") %>%
+  filter(round != "T5",
+         Collar != "52") -> l_dat_fluxgroups
+
+ggplot(l_dat_fluxgroups, aes(minute, ppm)) +
+  geom_line(aes(group=Collar)) +
+  geom_jitter(aes(shape = Location, color = lab_net), size = 3) #+
+  #scale_y_break(c(20, 60))
+  
+#plot strongly producing sample separately?
+
+```
 
