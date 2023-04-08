@@ -42,7 +42,7 @@ pclean <- function(x, digits = 3, printP = TRUE) {
 }
 ```
 
-Here are the field net-rate data and their analysis for the surface-flux portion of Morris et al 2023b. Fluxes are calculated using SoilFluxPro, data was collected using a LI-7810 equipped with a soil moisture probe.  
+Here the field and lab data are combined for comparison and graphing.
 
 # Read in and combine data
 
@@ -57,6 +57,19 @@ f_dat %>% #select locations where gross rates were measured
   filter(Location %in% c("g_up", "g_low"),
          #select week when soils were collected
          week(timestamp) == 30) -> f_dat
+
+f_dat$Origin <- recode_factor(f_dat$Origin,
+                             "g_low" = "lowland",
+                             "g_mid" = "midslope",
+                             "g_up" = "upland",
+                             "midstream" = "midstream",
+                             "upsream" = "upstream")
+
+#labelled column with current collar location in the same way
+f_dat$Location <- recode_factor(f_dat$Location,
+                               "g_low" = "lowland",
+                               "g_mid" = "midslope",
+                               "g_up" = "upland")
 
 summary(f_dat)
 ```
@@ -116,24 +129,18 @@ ggplot(pairedDat, aes(lab_net, FCH4, color = Origin)) +
   facet_wrap(Location~., scales = "free") +
     theme_bw() + theme(legend.position = "bottom")
 
-#Should some of these data points be filtered out of the analysis?
-
 pairedDat %>%
   group_by(Location, Origin) %>%
-  mutate(mean_Field = mean(FCH4),
-         sd_Field = sd(FCH4),
-         max_Field = max(FCH4),
-         min_Field = min(FCH4),
-         mean_Lab = mean(lab_net),
-         sd_Lab = sd(lab_net),
-         max_Lab = max(lab_net),
-         min_Lab = min(lab_net),
-         n = n()) %>%
+  mutate(n = n(),
+         Field = median(FCH4),
+         Field_se = sd(FCH4)/sqrt(n),
+         Lab = median(lab_net),
+         Lab_se = sd(lab_net)/sqrt(n),
+         ) %>%
   mutate_if(is.numeric, round, digits=2) %>%
   select(Location, Origin,
-         mean_Field, sd_Field, max_Field, min_Field,
-         mean_Lab, sd_Lab, max_Lab, min_Lab,
-         n) %>%
+         Field, Field_se,
+         Lab, Lab_se, n) %>%
   unique(.) %>%
   arrange(Location, Origin) -> MethaneComparison
 
@@ -159,14 +166,26 @@ ggplot(l_dat_fluxgroups, aes(minute, ppm)) +
   geom_line(aes(group=Collar)) +
   geom_jitter(aes(shape = Location, color = lab_net), size = 3) #+
   #scale_y_break(c(20, 60))
-  
-#plot strongly producing sample separately?
 
 ggplot(l_dat_fluxgroups, aes(lab_net, fill = type)) +
-  xlab("Net Rate") +
+  xlab("Net Rate \n nmol per meter squared per second") +
+  ggtitle("Lab Net Rates") +
   geom_histogram(color = "black") +
   scale_x_break(c(25, 275))
 
-
 ```
 
+# Field Net Rates
+
+```{r Net Field Rate Figure}
+
+pairedDat %>%
+  select(FCH4, Collar, Origin, Location) %>%
+  mutate(type = paste(Origin, "in", Location)) -> f_dat_fluxgroups
+
+ggplot(f_dat_fluxgroups, aes(FCH4, fill = type)) +
+  xlab("Net Rate \n nmol per meter squared per second") +
+  ggtitle("Field Net Rates") +
+  geom_histogram(color = "black")
+
+```

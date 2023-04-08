@@ -106,6 +106,7 @@ ggplot(old_dat, aes(month, SWC, fill = Origin)) +
   geom_boxplot(aes(group = interaction(month, Origin))) +
   scale_fill_discrete(name = "Soil Origin",
                       labels = Olabs) +
+  facet_wrap(Location~., scales="free") +
   theme_bw()
 
 ggplot(old_dat, aes(month, FCH4, fill = Origin)) +
