@@ -1,5 +1,5 @@
 ---
-title: "FieldNet"
+title: "PairedData"
 author: "Kendalynn A. Morris"
 date: "`r Sys.Date()`"
 output:
@@ -71,6 +71,20 @@ l_dat %>%
   mutate(ppm = mt / 0.13,
          minute = time_days * 24 * 60,
          Collar = as.factor(id)) -> l_dat
+
+l_dat$Origin <- recode_factor(l_dat$Origin,
+                             "g_low" = "lowland",
+                             "g_mid" = "midslope",
+                             "g_up" = "upland",
+                             "midstream" = "midstream",
+                             "upsream" = "upstream")
+
+#labelled column with current collar location in the same way
+l_dat$Location <- recode_factor(l_dat$Location,
+                               "g_low" = "lowland",
+                               "g_mid" = "midslope",
+                               "g_up" = "upland")
+
 summary(l_dat)
 ```
 
@@ -138,8 +152,8 @@ pairedDat[pairedDat$lab_net > 10,]$group <- "strongly producing"
 pairedDat %>%
   select(group, lab_net, Collar) %>%
   right_join(l_dat, by = "Collar") %>%
-  filter(round != "T5",
-         Collar != "52") -> l_dat_fluxgroups
+  filter(round != "T5") %>%
+  mutate(type = paste(Origin, "in", Location)) -> l_dat_fluxgroups
 
 ggplot(l_dat_fluxgroups, aes(minute, ppm)) +
   geom_line(aes(group=Collar)) +
@@ -147,6 +161,12 @@ ggplot(l_dat_fluxgroups, aes(minute, ppm)) +
   #scale_y_break(c(20, 60))
   
 #plot strongly producing sample separately?
+
+ggplot(l_dat_fluxgroups, aes(lab_net, fill = type)) +
+  xlab("Net Rate") +
+  geom_histogram(color = "black") +
+  scale_x_break(c(25, 275))
+
 
 ```
 
