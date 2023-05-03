@@ -287,7 +287,7 @@ labDat$C_rate <- (labDat$umolC/labDat$mass)/labDat$time_days
 
 labDat %>%
   filter(round == "T4", Location == "g_low") %>%
-  select(Origin, sm, netFromGross, P_rate, C_rate) %>%
+  select(Origin, sm, P_rate, C_rate) %>%
   pivot_longer(sm:C_rate, names_to = "var") %>%
   group_by(Origin, var) %>%
   summarize(across(everything(), list(Mean = mean, SD = sd),
@@ -504,14 +504,28 @@ labellies <- c('g_low' = "lowland",
                'g_up' = "upland",
                'midstream' = "midstream",
                'upstream' = "upstream")
+rates <- c("Production", "Consumption")
+names(rates) <- c("P_rate","C_rate")
+
 grossFlux %>%
-  select(Location, Origin, P_rate, C_rate, sm) %>%
-  pivot_longer(P_rate:sm, names_to = "vars") %>%
-ggplot(., aes(Location, value, fill = Origin)) +
-    scale_x_discrete(labels = c("lowland",
-                                "upland")) +
-    scale_fill_discrete(labels = Olabs) +
-    geom_boxplot() + facet_wrap(.~vars, scales = "free")
+  select(Location, Origin, P_rate, C_rate) %>%
+  pivot_longer(P_rate:C_rate, names_to = "vars") %>%
+  ggplot(., aes(Location, value, fill = Origin)) +
+  scale_x_discrete(labels = c("lowland",
+                              "upland")) +
+  scale_fill_discrete(labels = Olabs) +
+  ylab(expression("Gross CH"[4]~~mu~mol~g^{-1}~d^{-1})) + 
+  geom_boxplot() + facet_wrap(.~vars, scales = "free", labeller = labeller(vars = rates)) +
+  theme(legend.position = "bottom")
+
+  ggplot(grossFlux, aes(Location, sm, fill = Location)) +
+  scale_x_discrete(labels = c("lowland",
+                              "upland")) +
+      scale_fill_manual(values = c("#FF33CC", "#00CC66"),
+                     labels = Llabs) +
+  ylab(expression("Soil Moisture g"~g^{-1})) + 
+  geom_boxplot() +
+  theme(legend.position = "none", text = element_text(size = 16))
 
 ```
 

@@ -15,6 +15,9 @@ library(dplyr)
 library(lubridate)
 library(ggplot2)
 library(ggpmisc)
+library(emmeans)
+library(multcomp)
+library(kableExtra)
 select <- dplyr::select
 
 theme_set(theme_minimal() + theme(text = element_text(size = 11)))
@@ -41,7 +44,7 @@ pclean <- function(x, digits = 3, printP = TRUE) {
 }
 ```
 
-Here are the field net-rate data and their analysis for the surface-flux portion of Morris et al 2023b. Fluxes are calculated using SoilFluxPro, data was collected using a LI-7810 equipped with a soil moisture probe.  
+Here are the field net rate data and their analysis for the surface-flux portion of Morris et al 2023b. Fluxes were calculated using SoilFluxPro, data was collected using a LI-7810 equipped with a soil moisture and temperature probe.  
 
 # Data Summary
 
@@ -63,7 +66,7 @@ summary(f_dat)
 
 # Clean and Normalize
 
-```{r normalization of field data, include = FALSE}
+```{r normalization of field data, echo = FALSE, warning = FALSE, message = FALSE}
 f_dat %>%
   filter(if_else(Location == "g_up", FCH4 < 300,
                  FCH4 < 2000),
@@ -96,15 +99,17 @@ f_dat$nFCO2 <- log10(f_dat$FCO2)
 f_dat$SWC <- replace(f_dat$SWC, f_dat$SWC < 0.10, NA)
 hist(f_dat$SWC)
 
-
 Olabs <- c("lowland", "midslope", "upland", "midstream", "upstream")
+
 Llabs <- c("lowland", "midslope", "upland")
+names(Llabs) = c("g_low", "g_mid", "g_up")
+
 months <- c("May", "June", "July", "August")
 ```
 
 Soil samples come from 5 different origins (lowland, upland, midslope, upstream, and midstream) and are situated in two physical locations (lowland, upland). Does soil origin, current location, or an interaction between the two explain variation in field measurements of CH4 or CO2 flux?  
 
-## Methane
+# aov() Methane
 
 ```{r Methane, message = FALSE, warning = FALSE}
 methane <- aov(nFCH4 ~ Location*Origin + date + SWC + TS,
@@ -113,85 +118,83 @@ summary(methane)
 # par(mfrow=c(2,2))
 # plot(methane)
 # dev.off()
-TukeyHSD(methane, which = "Location")
+letters_CH4 <- emmeans(methane,
+                       ~ Origin|Location,
+                       adjust = "tukey")
+cld(letters_CH4)
 ```
 
 Initial analysis indicates a significant interaction between location and origin.  
 
 ```{r summary graph of methane, warning = FALSE, message = FALSE}
-f_dat %>%
-  filter(if_else(Location == "g_up", FCH4 < 300,
-                 FCH4 < 2000)) -> filterM_f_dat
-
-names(Llabs) = c("g_low", "g_mid", "g_up")
 
 #interaction driven by lowland
-ggplot(filterM_f_dat, aes(month(timestamp), FCH4, fill = Origin)) +
+ggplot(f_dat, aes(month(timestamp, label = TRUE), FCH4, fill = Origin)) +
     geom_boxplot(aes(group = interaction(month(timestamp), Origin))) +
     scale_fill_discrete(name = "Soil Origin",
                       labels = Olabs) +
     labs(x = "Month", y = "Flux CH4",
-         title = "Filtered Fluxes by Origin & Location") +
+         title = "Interaction of Location and Origin") +
+   ylab(expression(Flux~CH[4]~(nmol~m^{-2}~s^{-1}))) + 
     facet_wrap(Location ~ ., scales = "free",
                labeller = labeller(Location = Llabs)) +
-    theme_bw() + theme(legend.position = "bottom")
-
-#Should some of these data points be filtered out of the analysis?
-
-f_dat %>%
-  group_by(Location, Origin) %>%
-  mutate(mean = mean(FCH4),
-         sd = sd(FCH4),
-         max = max(FCH4),
-         min = min(FCH4),
-         n = n()) %>%
-  select(Location, Origin, mean, sd, max, min, n) %>%
-  unique(.) %>%
-  arrange(Location, Origin) -> MethaneSummary
-
-
-ggplot(f_dat[f_dat$Location == "g_low",], aes(month(timestamp), SWC, fill = Origin)) +
-    geom_boxplot(aes(group = interaction(month(timestamp), Origin))) +
-    scale_fill_discrete(name = "Soil Origin",
-                      labels = Olabs) +
-    labs(x = "Month", y = "Flux CH4",
-         title = "Filtered Fluxes by Origin & Location") +
-    theme_bw() + theme(legend.position = "bottom")
-
+  theme(legend.position = "bottom")
 ```
 
-```{r Follow-up on interaction effect}
-#Is interaction a true soil origin effect?
+## Is interaction a true soil origin effect?
+
+```{r Follow-up on interaction effect, message = FALSE, warning = FALSE}
+
 #are midland origin soils the wettest?
 SWC <- aov(SWC ~ Origin + date,
            data = f_dat[f_dat$Location == "g_low",])
 summary(SWC)
-TukeyHSD(SWC, which = "Origin")
+#without midland soil, SWC content become much more important
+
+letters_SWC <- emmeans(SWC,
+                       ~ Origin,
+                       adjust = "sidak")
+cld(letters_SWC)
 
 #exclude g_mid
 alt_low_meth <- aov(nFCH4 ~ Origin + SWC,
-                data = f_dat)
+                data = f_dat[f_dat$Origin != "g_mid" &
+                               f_dat$Location == "g_low",])
 summary(alt_low_meth)
 # par(mfrow=c(2,2))
 # plot(alt_low_meth)
 # dev.off()
-TukeyHSD(alt_low_meth, which = "Origin")
-#without midland soil, SWC content is the most important
-
-ggplot(f_dat[f_dat$Location == "g_low",],
-       aes(month(timestamp), SWC, fill = Origin)) +
-     geom_boxplot(aes(group = interaction(month(timestamp), Origin))) +
-     scale_fill_discrete(name = "Soil Origin",
-                         labels = Olabs) +
-     labs(x = "Month", y = "SWC",
-          title = "Lowland SWC") +
-     theme_bw() + theme(legend.position = "bottom")
-
+letters_altCH4 <- emmeans(alt_low_meth,
+                       ~ Origin,
+                       adjust = "sidak")
+cld(letters_altCH4)
 ```
+
+
+## Answer: No
+
 
 Midland soils are the wettest in the lowland location, and when they are excluded the interaction term is no longer significant. There is no reason to believe that midland soils have inherently higher WHC than other soil origins (insert data on WHC here), therefore we attribute this effect to microtopography.
 
-```{r Linear Mixed Effects Model}
+```{r Midslope soil in the Lowland Plot is the Wettest, message = FALSE, warning = FALSE}
+
+ggplot(f_dat[f_dat$Location == "g_low",], aes(month(timestamp, label = TRUE), SWC, fill = Origin)) +
+    geom_boxplot(aes(group = interaction(month(timestamp), Origin))) +
+    scale_fill_discrete(name = "Soil Origin",
+                      labels = Olabs) +
+    labs(x = "Month", title = "Lowland SWC by Origin & Location") +
+   ylab(expression("Soil Water Content "(m^{3}~m^{-3}))) +
+    theme_bw() + theme(legend.position = "bottom")
+
+```
+
+# Linear Mixed Effects Model
+
+```{r Linear Mixed Effects Model, message = FALSE, warning = FALSE}
+
+# This model was developed using a step-wise process,
+# see code in LicorDataAnalysis.R
+
 library(nlme)
 library(sjPlot)
 
@@ -205,6 +208,8 @@ CH4.5b <- lme(nFCH4 ~ camp_numeric + nFCO2 + SWC + Location,
 plot_model(CH4.5b)
 tab_model(CH4.5b)
 ```
+
+Lowland flux differs from midslope and upland, but soil origin was not si
 
 ## Carbon Dioxide
 
