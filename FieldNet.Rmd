@@ -231,16 +231,16 @@ f_dat %>%
          Origin %in% c("g_low", "g_mid", "g_up")) -> filterC_f_dat
 
 #elevation transplant
-ggplot(filterC_f_dat, aes(month(timestamp), FCO2, fill = Origin)) +
+ggplot(filterC_f_dat, aes(month(timestamp, label = TRUE), FCO2, fill = Origin)) +
     geom_boxplot(aes(group = interaction(month(timestamp), Origin))) +
       scale_fill_discrete(name = "Soil Origin",
                       labels = Olabs) +
     labs(x = "Month", y = "Flux CO2",
-         title = "Up and Downslope Transplant") +
+         title = "Effect of Soil Origin and Location") +
+  ylab(expression(Flux~CO[2]~(~mu~mol~m^{-2}~s^{-1}))) + 
     facet_wrap(Location ~ ., scales = "free",
                labeller = labeller(Location = Llabs)) +
     theme_bw() + theme(legend.position = "bottom")
-
 ```
 
 ```{r Less complicated CO2 analysis}
@@ -285,6 +285,7 @@ ggplot(CO2_fixedE, aes(Location, mean)) +
   scale_x_discrete(labels = Llabs) +
   labs(x = "\n Location", y = "Flux CO2",
        title = "Up and Downslope Transplant") +
+    ylab(expression(Flux~CO[2]~(~mu~mol~m^{-2}~s^{-1}))) + 
   geom_text(aes(y=mean, label=letters),
             position = position_dodge2(width = 0.9)) +
   theme_bw() + theme(legend.position = "bottom")
@@ -341,6 +342,7 @@ ggplot(CO2_OriginE, aes(Origin, mean)) +
   scale_x_discrete(name = "Soil Origin",
                    labels = Olabs) +
   labs(y = "Flux CO2", title = "Seasonal Average within Lowland Plot") +
+    ylab(expression(Flux~CO[2]~(~mu~mol~m^{-2}~s^{-1}))) + 
   geom_text(aes(y=mean, label=letters),
             position = position_dodge2(width = 0.9)) +
   theme_bw() + theme(legend.position = "none")

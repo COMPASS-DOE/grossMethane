@@ -510,12 +510,14 @@ names(rates) <- c("P_rate","C_rate")
 grossFlux %>%
   select(Location, Origin, P_rate, C_rate) %>%
   pivot_longer(P_rate:C_rate, names_to = "vars") %>%
-  ggplot(., aes(Location, value, fill = Origin)) +
+  mutate(vars2 = factor(vars, levels = c("P_rate","C_rate"))) -> long_gf
+  
+ggplot(long_gf, aes(Location, value, fill = Origin)) +
   scale_x_discrete(labels = c("lowland",
                               "upland")) +
   scale_fill_discrete(labels = Olabs) +
   ylab(expression("Gross CH"[4]~~mu~mol~g^{-1}~d^{-1})) + 
-  geom_boxplot() + facet_wrap(.~vars, scales = "free", labeller = labeller(vars = rates)) +
+  geom_boxplot() + facet_wrap(.~vars2, labeller = labeller(vars2 = rates)) +
   theme(legend.position = "bottom")
 
   ggplot(grossFlux, aes(Location, sm, fill = Location)) +
