@@ -1,6 +1,6 @@
 
 #This code is to read-in and reanalyze
-#2019 and 2022 soil methane field data
+#2019 and 2020 soil methane field data
 #from PREMIS
 #see Hopple et al 2022 for more detail:
 #https://doi.org/10.1016/j.soilbio.2022.108675

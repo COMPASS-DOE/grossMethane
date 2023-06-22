@@ -28,7 +28,7 @@ data_raw$timestamp <- mdy_hm(data_raw$datetime, tz="EST")
 #check dates
 #should have May 11th to August 17th
 sort(unique(date(data_raw$timestamp)))
-#create seperate date column
+#create separate date column
 data_raw$date <- date(data_raw$timestamp)
 
 #fix a data entry error where collar 69 was entered as 59

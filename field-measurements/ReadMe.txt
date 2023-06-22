@@ -21,7 +21,7 @@ cores_collars.csv
 	spreadsheet listing collar numbers and their treatment ids
 export.csv
 	exported from Soil Flux Pro
-licordate.csv
+licordata.csv
 	same as export.csv but with minor reformatting
 licorRTA.csv
 	processed through PairedMethaneLiCorData script, ready-to-analyze
