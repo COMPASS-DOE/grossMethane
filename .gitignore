@@ -9,6 +9,7 @@ CH4_PoolDilution.pdf
 *.csv
 *.html
 *.png
+*.dat
 
 #GrossFlux_
 GrossFlux_files/
