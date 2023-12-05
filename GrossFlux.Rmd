@@ -355,6 +355,15 @@ P_moisture <- aov(P_rate^0.025 ~ sm,
 Anova(P_moisture)
 Pmois <- unlist(Anova(P_moisture))
 Pmois_sm <- Pmois["Pr(>F)1"]
+
+#Comparison with polynomial fit for moisture
+Pmois_poly <- lm(P_rate ~ poly(sm, 2),
+            data = grossFlux)
+summary(Pmois_poly)
+anova(P_moisture, Pmois_poly)
+AIC(P_moisture) #linear fit has lower AIC
+AIC(Pmois_poly)
+
 ```
 
 There is evidence that location influences methane production (`r pclean(Ptrans_loc, 3)`), and equal evidence that soil moisture does (`r pclean(Pmois_sm, 3)`).  
@@ -371,9 +380,18 @@ Ctrans_loc <- Ctrans["Pr(>F)1"]
 
 C_moisture <- aov(C_rate ~ sm,
                   data = grossFlux)
-Anova(C_moisture)
-Cmois <- unlist(Anova(C_moisture))
-Cmois_sm <- Cmois["Pr(>F)1"]
+summary(C_moisture)
+
+#Comparison with polynomial fit for moisture
+Cmois_poly <- lm(C_rate ~ poly(sm, 2),
+            data = grossFlux)
+summary(Cmois_poly)
+anova(C_moisture, Cmois_poly)
+AIC(C_moisture)
+AIC(Cmois_poly) #polynomial fit has lower AIC
+
+C_mois_poly <- unlist(Anova(Cmois_poly))
+Cmois_sm <- C_mois_poly["Pr(>F)1"]
 ```
 
 There's strong evidence that location influences methane consumption (`r pclean(Ctrans_loc, 3)`), and even stronger evidence that soil moisture does (`r pclean(Cmois_sm, 3)`).  
@@ -543,7 +561,7 @@ ggplot(grossFlux, aes(diff, fill = Location)) +
 
 ```
 
-# Linear Regressions with Soil Moisture
+# Graphs with Soil Moisture
 
 ```{r Consumption vs SM, echo = FALSE, warning = FALSE}
 library(latex2exp)
@@ -570,10 +588,10 @@ ggplot(grossFlux, aes(sm, P_rate)) +
   scale_color_manual(values = c("#FF33CC", "#00CC66"),
                      labels = Llabs) +
   scale_shape_discrete(labels = Llabs) +
-  geom_smooth(method = lm, formula = y ~ poly(x,2), se = FALSE, size = 0.5) +
+  geom_smooth(method = lm, formula = y ~ x, se = FALSE, size = 0.5) +
   labs(x=  unname(TeX("\n Soil Moisture $(g * g^{-1})$")),
        y= unname(TeX("\n Production $(\\mu mol * g^{-1} * d^{-1})$"))) +
-  stat_poly_eq(formula = y ~ poly(x,2),
+  stat_poly_eq(formula = y ~ x,
                aes(label = paste(..eq.label..,
                                  ..adj.rr.label..,
                                  sep = "~~~"))) +
