@@ -109,9 +109,11 @@ summary(l_dat)
 l_dat %>%
   filter(round == "T4") %>%
   #assuming that flux from soil plug represents flux from 3.14 square centimeters
-  #umol per 3.14 cm^2 per d
-  # rate * 1.157 * 10^-15 (d to s) * (1/3.14) * 1/10^-4 (cm2 to m2) * 1000 (umol to nmol) = 36.86 
-  mutate(lab_net = (umolP - umolC) * 36.86) %>%
+  #(surface area of the core collected)
+  # current value * days/second * 1/3.14 * cm2/m2 * nmol/umol
+  # (rate in umol per g dry soil per d) * dry mass *
+  # 1/86400 * 1/3.14 * 1/0.0001 * 1000 = 36.9
+  mutate(lab_net = (P_rate - C_rate) * mass * 36.9) %>%
   left_join(f_dat, by = c("Collar","Location","Origin")) -> pairedDat 
   
 
