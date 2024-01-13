@@ -156,7 +156,7 @@ kable(MethaneComparison)
 ```{r Net Lab Rate Figure}
 
 pairedDat$group <- "near zero"
-pairedDat[pairedDat$lab_net < -10,]$group <- "consuming"
+pairedDat[pairedDat$lab_net < -0.5,]$group <- "consuming"
 pairedDat[pairedDat$lab_net > 10,]$group <- "strongly producing"
 
 pairedDat %>%
